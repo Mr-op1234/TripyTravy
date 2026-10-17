@@ -30,30 +30,6 @@ void main() {
                 end_date TEXT
               )
             ''');
-
-            await db.insert('itineraries', {
-              'title': 'Japan',
-              'subtitle': 'Ancient temples, neon cities, and breathtaking cherry blossoms.',
-              'duration': '6 Days',
-              'date_range': 'Apr 12 - Apr 17, 2025',
-              'image_path': 'assets/images/japan_clean.png',
-            });
-
-            await db.insert('itineraries', {
-              'title': 'Switzerland',
-              'subtitle': 'Breathtaking mountains, charming towns and unforgettable views.',
-              'duration': '7 Days',
-              'date_range': 'May 05 - May 12, 2025',
-              'image_path': 'assets/images/switzerland_clean.png',
-            });
-
-            await db.insert('itineraries', {
-              'title': 'Malaysia',
-              'subtitle': 'Lush tropical rainforests, diverse cuisine, and iconic skylines.',
-              'duration': '5 Days',
-              'date_range': 'Jun 10 - Jun 15, 2025',
-              'image_path': 'assets/images/malaysia_clean.png',
-            });
           },
         ),
       );
@@ -65,22 +41,9 @@ void main() {
       ItineraryDatabase.setDatabase(null);
     });
 
-    test('Loads initial default itineraries from SQLite', () async {
+    test('Starts with empty database when no itineraries are added', () async {
       final items = await ItineraryDatabase.instance.getAllItineraries();
-      expect(items.length, 3);
-      expect(items.map((e) => e.title), containsAll(['Japan', 'Switzerland', 'Malaysia']));
-    });
-
-    test('Deletes itinerary and persists deletion in SQLite', () async {
-      final itemsBefore = await ItineraryDatabase.instance.getAllItineraries();
-      final japanItem = itemsBefore.firstWhere((e) => e.title == 'Japan');
-
-      final rowsAffected = await ItineraryDatabase.instance.deleteItinerary(japanItem.id);
-      expect(rowsAffected, 1);
-
-      final itemsAfter = await ItineraryDatabase.instance.getAllItineraries();
-      expect(itemsAfter.length, 2);
-      expect(itemsAfter.any((e) => e.title == 'Japan'), isFalse);
+      expect(items, isEmpty);
     });
 
     test('Inserts new itinerary and persists in SQLite', () async {
@@ -89,15 +52,31 @@ void main() {
         subtitle: 'The city that never sleeps.',
         duration: '4 Days',
         dateRange: 'Jul 20 - Jul 24, 2025',
-        imagePath: 'assets/images/switzerland_clean.png',
+        imagePath: '',
       );
 
       expect(newItem.title, 'New York City');
       expect(newItem.id, isPositive);
 
       final allItems = await ItineraryDatabase.instance.getAllItineraries();
-      expect(allItems.length, 4);
-      expect(allItems.any((e) => e.title == 'New York City'), isTrue);
+      expect(allItems.length, 1);
+      expect(allItems.first.title, 'New York City');
+    });
+
+    test('Deletes itinerary and persists deletion in SQLite', () async {
+      final newItem = await ItineraryDatabase.instance.insertItinerary(
+        title: 'Paris',
+        subtitle: 'The city of lights.',
+        duration: '5 Days',
+        dateRange: 'Aug 01 - Aug 05, 2025',
+        imagePath: '',
+      );
+
+      final rowsAffected = await ItineraryDatabase.instance.deleteItinerary(newItem.id);
+      expect(rowsAffected, 1);
+
+      final itemsAfter = await ItineraryDatabase.instance.getAllItineraries();
+      expect(itemsAfter, isEmpty);
     });
   });
 

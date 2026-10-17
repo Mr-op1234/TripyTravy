@@ -116,13 +116,21 @@ class ItineraryDatabase {
 
     return await openDatabase(
       dbPath,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           try {
             await db.execute('ALTER TABLE itineraries ADD COLUMN start_date TEXT');
             await db.execute('ALTER TABLE itineraries ADD COLUMN end_date TEXT');
+          } catch (_) {}
+        }
+        if (oldVersion < 3) {
+          try {
+            await db.delete(
+              'itineraries',
+              where: "title IN ('Japan', 'Switzerland', 'Malaysia') AND image_path LIKE 'assets/%'",
+            );
           } catch (_) {}
         }
       },
@@ -142,37 +150,6 @@ class ItineraryDatabase {
         end_date TEXT
       )
     ''');
-
-    // Seed initial default itineraries on first launch
-    await db.insert('itineraries', {
-      'title': 'Japan',
-      'subtitle': 'Ancient temples, neon cities, and breathtaking Mount Fuji.',
-      'duration': '6 Days',
-      'date_range': 'Apr 12 - Apr 17, 2025',
-      'image_path': 'assets/images/japan_clean.png',
-      'start_date': '2025-04-12',
-      'end_date': '2025-04-17',
-    });
-
-    await db.insert('itineraries', {
-      'title': 'Switzerland',
-      'subtitle': 'Breathtaking mountain peaks, charming alpine towns, and crystal lakes.',
-      'duration': '7 Days',
-      'date_range': 'May 05 - May 12, 2025',
-      'image_path': 'assets/images/switzerland_clean.png',
-      'start_date': '2025-05-05',
-      'end_date': '2025-05-12',
-    });
-
-    await db.insert('itineraries', {
-      'title': 'Malaysia',
-      'subtitle': 'Lush tropical rainforests, diverse cuisine, and iconic skylines.',
-      'duration': '5 Days',
-      'date_range': 'Jun 10 - Jun 15, 2025',
-      'image_path': 'assets/images/malaysia_clean.png',
-      'start_date': '2025-06-10',
-      'end_date': '2025-06-15',
-    });
   }
 
   Future<List<DestinationItem>> getAllItineraries() async {
