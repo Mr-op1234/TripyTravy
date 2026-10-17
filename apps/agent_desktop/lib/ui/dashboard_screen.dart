@@ -783,6 +783,9 @@ class _ItineraryCardState extends State<ItineraryCard> {
   }
 
   Widget _buildCardBanner(String path, String fallbackTitle) {
+    if (path.isEmpty) {
+      return _buildFallbackBanner(fallbackTitle);
+    }
     if (path.startsWith('assets/')) {
       return Image.asset(
         path,
@@ -803,15 +806,49 @@ class _ItineraryCardState extends State<ItineraryCard> {
 
   Widget _buildFallbackBanner(String title) {
     return Container(
-      color: const Color(0xFF1E293B),
-      alignment: Alignment.center,
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1E293B),
+            Color(0xFF0F172A),
+          ],
         ),
+      ),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.flight_takeoff_rounded,
+              color: Colors.white60,
+              size: 24,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

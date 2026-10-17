@@ -36,7 +36,7 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
     final item = widget.itemToEdit;
     _titleController = TextEditingController(text: item?.title ?? '');
     _descriptionController = TextEditingController(text: item?.subtitle ?? '');
-    _bannerPath = item?.imagePath ?? 'assets/images/switzerland_clean.png';
+    _bannerPath = item?.imagePath ?? '';
 
     if (item?.startDate != null) {
       _startDate = DateTime.tryParse(item!.startDate!) ?? DateTime.now();
@@ -171,7 +171,7 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
 
     final duration = _formatDuration(_startDate, _endDate);
     final dateRange = _formatDateRange(_startDate, _endDate);
-    final banner = _bannerPath.isNotEmpty ? _bannerPath : 'assets/images/switzerland_clean.png';
+    final banner = _bannerPath.trim();
 
     final updatedItem = DestinationItem(
       id: widget.itemToEdit?.id ?? 0,
@@ -189,12 +189,15 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
   }
 
   Widget _buildBannerPreview() {
+    if (_bannerPath.isEmpty) {
+      return _buildPlaceholder();
+    }
     if (_bannerPath.startsWith('assets/')) {
       return Image.asset(
         _bannerPath,
         fit: BoxFit.cover,
         width: double.infinity,
-        height: 150,
+        height: double.infinity,
         errorBuilder: (_, __, ___) => _buildPlaceholder(),
       );
     }
@@ -204,7 +207,7 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
         file,
         fit: BoxFit.cover,
         width: double.infinity,
-        height: 150,
+        height: double.infinity,
         errorBuilder: (_, __, ___) => _buildPlaceholder(),
       );
     }
@@ -212,19 +215,35 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
   }
 
   Widget _buildPlaceholder() {
-    return Container(
-      color: const Color(0xFFE2E8F0),
-      alignment: Alignment.center,
-      child: const Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.add_photo_alternate_outlined, size: 36, color: Color(0xFF64748B)),
-          SizedBox(height: 6),
-          Text(
-            'Upload trip banner from folder',
-            style: TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
-          ),
-        ],
+    return InkWell(
+      onTap: _pickBanner,
+      child: Container(
+        color: const Color(0xFFF1F5F9),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0066FF).withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add_photo_alternate_outlined, size: 22, color: Color(0xFF0066FF)),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'No Banner Selected',
+              style: TextStyle(color: Color(0xFF475569), fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 2),
+            const Text(
+              'Click to upload from folder',
+              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -299,6 +318,26 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
                       width: double.infinity,
                       child: _buildBannerPreview(),
                     ),
+                    if (_bannerPath.isNotEmpty)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Tooltip(
+                          message: 'Remove Banner',
+                          child: Material(
+                            color: Colors.black.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(20),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: () => setState(() => _bannerPath = ''),
+                              child: const Padding(
+                                padding: EdgeInsets.all(5),
+                                child: Icon(Icons.close_rounded, size: 16, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     Positioned(
                       bottom: 8,
                       right: 8,
@@ -306,7 +345,7 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
                         onPressed: _pickBanner,
                         icon: const Icon(Icons.folder_open_rounded, size: 15, color: Colors.white),
                         label: Text(
-                          _bannerPath.startsWith('assets/') ? 'Upload from Folder' : 'Change Image',
+                          _bannerPath.isEmpty ? 'Upload from Folder' : 'Change Image',
                           style: const TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,

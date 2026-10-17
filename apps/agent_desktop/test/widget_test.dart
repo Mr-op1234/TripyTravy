@@ -161,9 +161,10 @@ void main() {
       await tester.tap(find.text('Add More Trip'));
       await tester.pumpAndSettle();
 
-      // Verify all required fields are present
+      // Verify all required fields are present and banner is empty
       expect(find.text('Create New Trip'), findsOneWidget);
       expect(find.text('Trip Banner'), findsOneWidget);
+      expect(find.text('No Banner Selected'), findsOneWidget);
       expect(find.text('Upload from Folder'), findsOneWidget);
       expect(find.text('Trip Title *'), findsOneWidget);
       expect(find.text('Trip Description'), findsOneWidget);
