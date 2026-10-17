@@ -1,0 +1,10 @@
+# GitHub Linguist Overrides
+# Exclude platform runners and helper scripts from repository language statistics
+
+apps/**/windows/** linguist-vendored
+apps/**/web/** linguist-vendored
+apps/**/macos/** linguist-vendored
+apps/**/linux/** linguist-vendored
+apps/**/android/** linguist-vendored
+apps/**/ios/** linguist-vendored
+*.bat linguist-vendored

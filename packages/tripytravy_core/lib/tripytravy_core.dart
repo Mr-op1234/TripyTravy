@@ -1,0 +1,25 @@
+library tripytravy_core;
+
+export 'domain/entities/attachment_descriptor.dart';
+export 'domain/entities/itinerary_event.dart';
+export 'domain/entities/trip_package.dart';
+export 'domain/value_objects/iana_timezone.dart';
+export 'domain/value_objects/sha256_digest.dart';
+export 'domain/value_objects/geo_coordinate.dart';
+export 'domain/value_objects/money_currency.dart';
+export 'domain/policies/schedule_conflict_policy.dart';
+export 'domain/policies/template_sanitizer_policy.dart';
+export 'domain/ports/inbound_ports.dart';
+export 'domain/ports/outbound_ports.dart';
+export 'domain/usecases/manage_trip_schedule_usecase.dart';
+export 'domain/usecases/trip_container_usecases.dart';
+export 'adapters/outbound/attachments/lossy_photo_webp_adapter.dart';
+export 'adapters/outbound/attachments/lossless_barcode_ticket_adapter.dart';
+export 'adapters/outbound/attachments/pdf_voucher_inspector_adapter.dart';
+export 'adapters/outbound/attachments/pmtiles_map_slice_adapter.dart';
+export 'adapters/outbound/attachments/composite_attachment_registry.dart';
+export 'adapters/outbound/attachments/cas_attachment_storage_adapter.dart';
+export 'adapters/outbound/crypto/ttrv_container_cipher_adapter.dart';
+export 'adapters/outbound/persistence/in_memory_trip_repository_adapter.dart';
+export 'adapters/outbound/routing/geodesic_route_provider_adapter.dart';
+export 'adapters/serialization/protobuf_trip_mapper.dart';

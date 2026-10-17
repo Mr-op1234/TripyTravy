@@ -1,0 +1,11 @@
+name: client_mobile
+description: TripyTravy Mobile Read-Only Trip Viewer (Driving Adapter)
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+
+dependencies:
+  tripytravy_core:
+    path: ../../packages/tripytravy_core

@@ -1,0 +1,28 @@
+name: agent_desktop
+description: TripyTravy Desktop Trip Creator (Driving Adapter)
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  file_picker: ^13.1.0
+  flutter:
+    sdk: flutter
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  sqflite_common_ffi: ^2.4.4
+  sqlite3_flutter_libs: ^0.6.0+eol
+  tripytravy_core:
+    path: ../../packages/tripytravy_core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

@@ -1,0 +1,18 @@
+[package]
+name = "tripytravy_native"
+version = "0.1.0"
+edition = "2021"
+description = "TripyTravy TTRV v1 Cryptographic & Binary Container Engine"
+
+[lib]
+name = "tripytravy_native"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+aes-gcm = "0.10"
+argon2 = "0.5"
+hkdf = "0.12"
+sha2 = "0.10"
+zstd = "0.13"
+zeroize = { version = "1.7", features = ["derive"] }
+rand = "0.8"
