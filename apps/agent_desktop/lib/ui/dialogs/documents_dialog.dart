@@ -109,6 +109,319 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
     );
   }
 
+  void _showEditInformationDialog(TripDocumentItem doc) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AddInformationDialog(
+        itineraryId: widget.itineraryId,
+        availableEvents: widget.availableEvents,
+        itemToEdit: doc,
+        onDocumentSaved: () {
+          _loadDocuments();
+        },
+      ),
+    );
+  }
+
+  String _getFriendlyFileType(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'PDF Document';
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) {
+      return 'Image';
+    }
+    if (lower.endsWith('.doc') || lower.endsWith('.docx')) return 'Word Document';
+    if (lower.endsWith('.xls') || lower.endsWith('.xlsx') || lower.endsWith('.csv')) return 'Spreadsheet';
+    if (lower.endsWith('.txt')) return 'Text Document';
+    return 'Document';
+  }
+
+  Widget _buildRichDescription(String rawText, {String? mapUrl}) {
+    String fullText = rawText.trim();
+    if (mapUrl != null && mapUrl.isNotEmpty && !fullText.contains(mapUrl)) {
+      if (fullText.isNotEmpty) {
+        fullText = '$fullText\n\nhere is link to the place: $mapUrl';
+      } else {
+        fullText = 'here is link to the place: $mapUrl';
+      }
+    }
+
+    final urlRegex = RegExp(r'(https?://[^\s]+)');
+    final matches = urlRegex.allMatches(fullText).toList();
+
+    if (matches.isEmpty) {
+      return Text(
+        fullText,
+        style: const TextStyle(
+          fontSize: 14.5,
+          color: Color(0xFF334155),
+          height: 1.55,
+        ),
+      );
+    }
+
+    final spans = <InlineSpan>[];
+    int currentIndex = 0;
+
+    for (final match in matches) {
+      if (match.start > currentIndex) {
+        spans.add(TextSpan(
+          text: fullText.substring(currentIndex, match.start),
+          style: const TextStyle(
+            fontSize: 14.5,
+            color: Color(0xFF334155),
+            height: 1.55,
+          ),
+        ));
+      }
+
+      final url = fullText.substring(match.start, match.end);
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: InkWell(
+          onTap: () => _openFile(url),
+          mouseCursor: SystemMouseCursors.click,
+          borderRadius: BorderRadius.circular(4),
+          child: Text(
+            url,
+            style: const TextStyle(
+              fontSize: 14.5,
+              color: Color(0xFF2563EB),
+              decoration: TextDecoration.underline,
+              decorationColor: Color(0xFF2563EB),
+              height: 1.55,
+            ),
+          ),
+        ),
+      ));
+      currentIndex = match.end;
+    }
+
+    if (currentIndex < fullText.length) {
+      spans.add(TextSpan(
+        text: fullText.substring(currentIndex),
+        style: const TextStyle(
+          fontSize: 14.5,
+          color: Color(0xFF334155),
+          height: 1.55,
+        ),
+      ));
+    }
+
+    return Text.rich(
+      TextSpan(children: spans),
+    );
+  }
+
+  Widget _buildAttachmentPill(Map<String, String> att) {
+    final name = att['name'] ?? 'Document';
+    final size = att['size'] ?? '';
+    final path = att['path'] ?? '';
+    final typeStr = _getFriendlyFileType(name);
+    final subtitle = size.isNotEmpty ? '$typeStr · $size' : typeStr;
+
+    return Container(
+      height: 60,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.horizontal(left: Radius.circular(13)),
+            ),
+            child: Center(
+              child: Transform.rotate(
+                angle: -0.7,
+                child: const Icon(
+                  Icons.attach_file_rounded,
+                  size: 24,
+                  color: Color(0xFF334155),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF64748B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Preview / Open Document',
+            onPressed: () => _openFile(path),
+            icon: const Icon(
+              Icons.visibility_outlined,
+              size: 20,
+              color: Color(0xFF0F172A),
+            ),
+            splashRadius: 18,
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInformationCard(TripDocumentItem doc) {
+    final hasAttachments = doc.attachments.isNotEmpty || (doc.fileName.isNotEmpty && doc.filePath.isNotEmpty);
+    final List<Map<String, String>> attachmentsList = doc.attachments.isNotEmpty
+        ? doc.attachments
+        : (doc.fileName.isNotEmpty && doc.filePath.isNotEmpty
+            ? [{'name': doc.fileName, 'size': doc.fileSize, 'path': doc.filePath}]
+            : []);
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row: 6-dot drag indicator, Blue Info Badge, Title, Edit button, 3-dots menu
+          Row(
+            children: [
+              const Icon(
+                Icons.drag_indicator_rounded,
+                color: Color(0xFFCBD5E1),
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 28,
+                height: 28,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF2563EB),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  doc.title.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: Color(0xFF0F172A),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Edit Information',
+                onPressed: () => _showEditInformationDialog(doc),
+                icon: const Icon(Icons.edit_outlined, size: 19, color: Color(0xFF64748B)),
+                splashRadius: 18,
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Options',
+                icon: const Icon(Icons.more_horiz_rounded, size: 20, color: Color(0xFF64748B)),
+                splashRadius: 18,
+                onSelected: (val) {
+                  if (val == 'edit') _showEditInformationDialog(doc);
+                  if (val == 'delete') _deleteDoc(doc);
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_outlined, size: 16, color: Color(0xFF2563EB)),
+                        SizedBox(width: 8),
+                        Text('Edit Information', style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFDC2626)),
+                        SizedBox(width: 8),
+                        Text('Delete Information', style: TextStyle(fontSize: 13, color: Color(0xFFDC2626))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // Description & Clickable Links
+          if (doc.description.isNotEmpty || (doc.mapUrl != null && doc.mapUrl!.isNotEmpty)) ...[
+            const SizedBox(height: 14),
+            _buildRichDescription(
+              doc.description,
+              mapUrl: doc.mapUrl,
+            ),
+          ],
+
+          // Attachment Pills (Image 1 style)
+          if (hasAttachments) ...[
+            const SizedBox(height: 16),
+            Column(
+              children: attachmentsList.map((att) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _buildAttachmentPill(att),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.sizeOf(context);
@@ -207,187 +520,12 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
                             ],
                           ),
                         )
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isMultiColumn = constraints.maxWidth > 720;
-                            return GridView.builder(
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: constraints.maxWidth > 1150 ? 3 : (isMultiColumn ? 2 : 1),
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 14,
-                                mainAxisExtent: 145,
-                              ),
-                              itemCount: _documents.length,
-                              itemBuilder: (context, index) {
-                                final doc = _documents[index];
-                                final color = _getTypeColor(doc);
-                                final bgColor = _getTypeBgColor(doc);
-                                final icon = _getTypeIcon(doc);
-
-                                return Container(
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      // Top row: Icon, Title, Badge, Actions
-                                      Row(
-                                        children: [
-                                          Container(
-                                            width: 36,
-                                            height: 36,
-                                            decoration: BoxDecoration(
-                                              color: bgColor,
-                                              borderRadius: BorderRadius.circular(9),
-                                            ),
-                                            child: Icon(icon, color: color, size: 19),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: Text(
-                                                        doc.title,
-                                                        style: const TextStyle(
-                                                          fontSize: 14.5,
-                                                          fontWeight: FontWeight.bold,
-                                                          color: Color(0xFF0F172A),
-                                                        ),
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow.ellipsis,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                                      decoration: BoxDecoration(
-                                                        color: bgColor,
-                                                        borderRadius: BorderRadius.circular(5),
-                                                      ),
-                                                      child: Text(
-                                                        doc.hasLocation
-                                                            ? 'LOCATION'
-                                                            : (doc.attachments.isNotEmpty ? 'DOCS' : 'INFO'),
-                                                        style: TextStyle(
-                                                          color: color,
-                                                          fontWeight: FontWeight.bold,
-                                                          fontSize: 9,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                if (doc.hasLocation)
-                                                  Padding(
-                                                    padding: const EdgeInsets.only(top: 2),
-                                                    child: Row(
-                                                      children: [
-                                                        const Icon(Icons.place_rounded, size: 12, color: Color(0xFF0284C7)),
-                                                        const SizedBox(width: 3),
-                                                        Expanded(
-                                                          child: Text(
-                                                            '${doc.locationName!} ${doc.coordinatesDisplay.isNotEmpty ? "(${doc.coordinatesDisplay})" : ""}',
-                                                            style: const TextStyle(
-                                                              fontSize: 11.5,
-                                                              fontWeight: FontWeight.w600,
-                                                              color: Color(0xFF0284C7),
-                                                            ),
-                                                            maxLines: 1,
-                                                            overflow: TextOverflow.ellipsis,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                          if (doc.mapUrl != null && doc.mapUrl!.isNotEmpty)
-                                            IconButton(
-                                              tooltip: 'Open in Google Maps',
-                                              onPressed: () => _openFile(doc.mapUrl!),
-                                              icon: const Icon(Icons.map_rounded, size: 17, color: Color(0xFF0284C7)),
-                                              splashRadius: 16,
-                                              padding: EdgeInsets.zero,
-                                              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                            ),
-                                          IconButton(
-                                            tooltip: 'Delete Information',
-                                            onPressed: () => _deleteDoc(doc),
-                                            icon: const Icon(Icons.delete_outline_rounded, size: 17, color: Color(0xFFDC2626)),
-                                            splashRadius: 16,
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                          ),
-                                        ],
-                                      ),
-
-                                      // Description Snippet
-                                      if (doc.description.isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 2),
-                                          child: Text(
-                                            doc.description,
-                                            style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-
-                                      // Attached Documents Pills
-                                      if (doc.attachments.isNotEmpty)
-                                        Wrap(
-                                          spacing: 6,
-                                          runSpacing: 4,
-                                          children: doc.attachments.map((att) {
-                                            return InkWell(
-                                              onTap: () => _openFile(att['path'] ?? ''),
-                                              borderRadius: BorderRadius.circular(6),
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius: BorderRadius.circular(6),
-                                                  border: Border.all(color: const Color(0xFFCBD5E1)),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    const Icon(Icons.attach_file_rounded, size: 12, color: Color(0xFF2563EB)),
-                                                    const SizedBox(width: 4),
-                                                    ConstrainedBox(
-                                                      constraints: const BoxConstraints(maxWidth: 160),
-                                                      child: Text(
-                                                        '${att['name']} (${att['size']})',
-                                                        style: const TextStyle(fontSize: 11, color: Color(0xFF334155)),
-                                                        overflow: TextOverflow.ellipsis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            );
-                                          }).toList(),
-                                        )
-                                      else if (doc.fileName.isNotEmpty && doc.filePath.isNotEmpty)
-                                        Text(
-                                          '${doc.fileName} • ${doc.fileSize}',
-                                          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            );
+                      : ListView.separated(
+                          padding: const EdgeInsets.only(top: 4, bottom: 8),
+                          itemCount: _documents.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 16),
+                          itemBuilder: (context, index) {
+                            return _buildInformationCard(_documents[index]);
                           },
                         ),
             ),
@@ -428,12 +566,14 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
 class AddInformationDialog extends StatefulWidget {
   final int itineraryId;
   final List<TripEventItem> availableEvents;
+  final TripDocumentItem? itemToEdit;
   final VoidCallback onDocumentSaved;
 
   const AddInformationDialog({
     super.key,
     required this.itineraryId,
     this.availableEvents = const [],
+    this.itemToEdit,
     required this.onDocumentSaved,
   });
 
@@ -447,11 +587,39 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
   final _mapsUrlController = TextEditingController();
 
   final List<PlatformFile> _attachedFiles = [];
+  List<Map<String, String>> _existingAttachments = [];
   GoogleMapsLocation? _fetchedLocation;
   bool _isFetchingLocation = false;
   String? _locationStatusMessage;
   String? _errorMessage;
   Timer? _debounceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.itemToEdit != null) {
+      final doc = widget.itemToEdit!;
+      _titleController.text = doc.title;
+      _descriptionController.text = doc.description;
+      if (doc.hasLocation) {
+        _mapsUrlController.text = doc.mapUrl ?? '';
+        _fetchedLocation = GoogleMapsLocation(
+          rawUrl: doc.mapUrl ?? '',
+          locationName: doc.locationName ?? '',
+          latitude: doc.latitude,
+          longitude: doc.longitude,
+        );
+      }
+      _existingAttachments = List.from(doc.attachments);
+      if (_existingAttachments.isEmpty && doc.filePath.isNotEmpty) {
+        _existingAttachments.add({
+          'name': doc.fileName,
+          'size': doc.fileSize,
+          'path': doc.filePath,
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -601,7 +769,7 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
     });
 
     try {
-      final List<Map<String, String>> savedAttachments = [];
+      final List<Map<String, String>> savedAttachments = List.from(_existingAttachments);
       for (final f in _attachedFiles) {
         if (f.path != null) {
           final savedPath = await ItineraryDatabase.saveDocumentToAppStorage(f.path!);
@@ -621,9 +789,9 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
       final primary = savedAttachments.isNotEmpty ? savedAttachments.first : null;
 
       final docItem = TripDocumentItem(
-        id: 'info_${DateTime.now().millisecondsSinceEpoch}',
+        id: widget.itemToEdit?.id ?? 'info_${DateTime.now().millisecondsSinceEpoch}',
         itineraryId: widget.itineraryId,
-        eventId: widget.availableEvents.isNotEmpty ? widget.availableEvents.first.id : null,
+        eventId: widget.itemToEdit?.eventId ?? (widget.availableEvents.isNotEmpty ? widget.availableEvents.first.id : null),
         docType: _fetchedLocation != null ? 'location' : 'info',
         title: title,
         description: _descriptionController.text.trim(),
@@ -638,7 +806,11 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
         attachmentsJson: savedAttachments.isNotEmpty ? jsonEncode(savedAttachments) : null,
       );
 
-      await ItineraryDatabase.instance.insertDocument(docItem);
+      if (widget.itemToEdit != null) {
+        await ItineraryDatabase.instance.updateDocument(docItem);
+      } else {
+        await ItineraryDatabase.instance.insertDocument(docItem);
+      }
       widget.onDocumentSaved();
       if (mounted) Navigator.pop(context);
     } catch (e, stack) {
@@ -768,17 +940,19 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                   child: const Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB), size: 22),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Add Information',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                        widget.itemToEdit != null ? 'Edit Information' : 'Add Information',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                       ),
                       Text(
-                        'Add trip guidelines, location coordinates, and attach documents',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        widget.itemToEdit != null
+                            ? 'Update details, coordinates, or attached documents'
+                            : 'Add trip guidelines, location coordinates, and attach documents',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                       ),
                     ],
                   ),
@@ -900,7 +1074,7 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                     const SizedBox(height: 8),
 
                     // Attached Files List
-                    if (_attachedFiles.isEmpty)
+                    if (_attachedFiles.isEmpty && _existingAttachments.isEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
@@ -925,44 +1099,89 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
                         child: Column(
-                          children: _attachedFiles.asMap().entries.map((entry) {
-                            final idx = entry.key;
-                            final f = entry.value;
-                            final sizeKb = _getFileSizeBytes(f) / 1024;
-                            final sizeStr = sizeKb > 1024 ? '${(sizeKb / 1024).toStringAsFixed(1)} MB' : '${sizeKb.toStringAsFixed(1)} KB';
-
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 6),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(_getFileIcon(f.name), size: 18, color: const Color(0xFF2563EB)),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '${f.name} ($sizeStr)',
-                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                          children: [
+                            // Existing attachments
+                            ..._existingAttachments.asMap().entries.map((entry) {
+                              final idx = entry.key;
+                              final att = entry.value;
+                              final name = att['name'] ?? '';
+                              final size = att['size'] ?? '';
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(_getFileIcon(name), size: 18, color: const Color(0xFF2563EB)),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        size.isNotEmpty ? '$name ($size)' : name,
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
-                                    onPressed: () => _removeFile(idx),
-                                    splashRadius: 14,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                                    tooltip: 'Remove',
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
+                                    IconButton(
+                                      icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
+                                      onPressed: () {
+                                        setState(() {
+                                          _existingAttachments.removeAt(idx);
+                                        });
+                                      },
+                                      splashRadius: 14,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                      tooltip: 'Remove',
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                            // Newly picked files
+                            ..._attachedFiles.asMap().entries.map((entry) {
+                              final idx = entry.key;
+                              final f = entry.value;
+                              final sizeKb = _getFileSizeBytes(f) / 1024;
+                              final sizeStr = sizeKb > 1024 ? '${(sizeKb / 1024).toStringAsFixed(1)} MB' : '${sizeKb.toStringAsFixed(1)} KB';
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(_getFileIcon(f.name), size: 18, color: const Color(0xFF2563EB)),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '${f.name} ($sizeStr)',
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
+                                      onPressed: () => _removeFile(idx),
+                                      splashRadius: 14,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                      tooltip: 'Remove',
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
                         ),
                       ),
                     const SizedBox(height: 18),
@@ -1070,7 +1289,7 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text('Save Information', style: TextStyle(fontWeight: FontWeight.bold)),
+                      : Text(widget.itemToEdit != null ? 'Update Information' : 'Save Information', style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),

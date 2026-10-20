@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agent_desktop/data/itinerary_database.dart';
 import 'package:agent_desktop/ui/dashboard_screen.dart';
 import 'package:agent_desktop/ui/trip_detail_screen.dart';
+import 'package:agent_desktop/ui/dialogs/documents_dialog.dart';
 import 'package:agent_desktop/ui/widgets/smooth_scroll.dart';
 import 'package:agent_desktop/ui/widgets/rich_description_editor.dart';
 import 'package:agent_desktop/data/google_maps_helper.dart';
@@ -22,6 +24,9 @@ void main() {
         inMemoryDatabasePath,
         options: OpenDatabaseOptions(
           version: 1,
+          onConfigure: (db) async {
+            await db.execute('PRAGMA foreign_keys = ON;');
+          },
           onCreate: (db, version) async {
             await db.execute('''
               CREATE TABLE itineraries (
@@ -53,7 +58,31 @@ void main() {
                 cover_image TEXT,
                 photos_json TEXT,
                 notes_json TEXT,
-                sort_order INTEGER NOT NULL
+                sort_order INTEGER NOT NULL,
+                FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE
+              )
+            ''');
+
+            await db.execute('''
+              CREATE TABLE event_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL,
+                note_text TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE CASCADE
+              )
+            ''');
+
+            await db.execute('''
+              CREATE TABLE event_photos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL,
+                photo_path TEXT NOT NULL,
+                caption TEXT,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE CASCADE
               )
             ''');
 
@@ -73,7 +102,40 @@ void main() {
                 latitude REAL,
                 longitude REAL,
                 map_url TEXT,
-                attachments_json TEXT
+                attachments_json TEXT,
+                FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE,
+                FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE SET NULL
+              )
+            ''');
+
+            await db.execute('''
+              CREATE TABLE document_attachments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_id TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                file_size TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                mime_type TEXT,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (document_id) REFERENCES trip_documents(id) ON DELETE CASCADE
+              )
+            ''');
+
+            await db.execute('''
+              CREATE TABLE trip_locations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                itinerary_id INTEGER NOT NULL,
+                document_id TEXT,
+                event_id TEXT,
+                location_name TEXT NOT NULL,
+                latitude REAL,
+                longitude REAL,
+                map_url TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE,
+                FOREIGN KEY (document_id) REFERENCES trip_documents(id) ON DELETE CASCADE,
+                FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE SET NULL
               )
             ''');
           },
@@ -153,6 +215,84 @@ void main() {
       expect(docs.length, 1);
       expect(docs.first.title, 'Boarding Pass CCU-DXB');
       expect(docs.first.docType, 'flight');
+    });
+
+    test('Enforces foreign key cascades across normalized multi-table database', () async {
+      final trip = await ItineraryDatabase.instance.insertItinerary(
+        title: 'Norway Expedition',
+        subtitle: 'Fjords and Northern lights',
+        duration: '10 Days',
+        dateRange: 'Oct 01 - Oct 10, 2026',
+        imagePath: '',
+      );
+
+      final event = TripEventItem(
+        id: 'evt_norway_1',
+        itineraryId: trip.id,
+        title: 'Fjord Ferry Cruise',
+        eventDate: '2026-10-02',
+        duration: '3 hrs',
+        location: 'Geiranger',
+        notes: const ['Bring warm jacket', 'Camera battery full'],
+        photos: const ['assets/images/fjord1.jpg'],
+      );
+      await ItineraryDatabase.instance.insertEvent(event);
+
+      // Verify event_notes child table contains normalized 1NF rows
+      final rawNotes = await testDb.query('event_notes', where: 'event_id = ?', whereArgs: ['evt_norway_1']);
+      expect(rawNotes.length, 2);
+      expect(rawNotes.first['note_text'], 'Bring warm jacket');
+
+      // Verify event_photos child table contains normalized 1NF rows
+      final rawPhotos = await testDb.query('event_photos', where: 'event_id = ?', whereArgs: ['evt_norway_1']);
+      expect(rawPhotos.length, 1);
+      expect(rawPhotos.first['photo_path'], 'assets/images/fjord1.jpg');
+
+      // Insert normalized document with multiple attachments and location
+      final doc = TripDocumentItem(
+        id: 'doc_norway_pass',
+        itineraryId: trip.id,
+        eventId: 'evt_norway_1',
+        docType: 'info',
+        title: 'Passports',
+        description: 'Keep passports safe.',
+        fileName: 'passport1.pdf',
+        fileSize: '5.3 MB',
+        filePath: 'test/passport1.pdf',
+        locationName: 'Geiranger Fjord Center',
+        latitude: 62.1008,
+        longitude: 7.2059,
+        mapUrl: 'https://maps.google.com/?q=62.1008,7.2059',
+        attachmentsJson: jsonEncode([
+          {'name': 'passport1.pdf', 'size': '5.3 MB', 'path': 'test/passport1.pdf'},
+          {'name': 'visa.pdf', 'size': '1.1 MB', 'path': 'test/visa.pdf'},
+        ]),
+      );
+      await ItineraryDatabase.instance.insertDocument(doc);
+
+      // Verify normalized document_attachments child table
+      final rawAttachments = await testDb.query('document_attachments', where: 'document_id = ?', whereArgs: ['doc_norway_pass']);
+      expect(rawAttachments.length, 2);
+      expect(rawAttachments.first['file_name'], 'passport1.pdf');
+
+      // Verify normalized trip_locations table
+      final rawLocations = await testDb.query('trip_locations', where: 'document_id = ?', whereArgs: ['doc_norway_pass']);
+      expect(rawLocations.length, 1);
+      expect(rawLocations.first['location_name'], 'Geiranger Fjord Center');
+
+      // Delete document -> verify document_attachments and trip_locations cascade delete
+      await ItineraryDatabase.instance.deleteDocument('doc_norway_pass');
+      final remainingAttachments = await testDb.query('document_attachments', where: 'document_id = ?', whereArgs: ['doc_norway_pass']);
+      expect(remainingAttachments, isEmpty);
+      final remainingLocations = await testDb.query('trip_locations', where: 'document_id = ?', whereArgs: ['doc_norway_pass']);
+      expect(remainingLocations, isEmpty);
+
+      // Delete entire itinerary -> verify cascading delete wipes events, notes, photos
+      await ItineraryDatabase.instance.deleteItinerary(trip.id);
+      final remainingEvents = await testDb.query('trip_events', where: 'itinerary_id = ?', whereArgs: [trip.id]);
+      expect(remainingEvents, isEmpty);
+      final remainingNotes = await testDb.query('event_notes', where: 'event_id = ?', whereArgs: ['evt_norway_1']);
+      expect(remainingNotes, isEmpty);
     });
   });
 
@@ -467,6 +607,115 @@ void main() {
       await tester.tap(find.byTooltip('Clear Formatting'));
       await tester.pumpAndSettle();
       expect(controller.text, 'Swiss Flight');
+    });
+
+    testWidgets('DocumentsManagerDialog renders Image 1 card styling and vertical layout', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final sampleDoc = TripDocumentItem(
+        id: 'info_passports_1',
+        itineraryId: 1,
+        docType: 'info',
+        title: 'Passports',
+        description: 'These are your Passports Keep them safe.\n\nhere is link to the place: https://www.google.com/maps/search/?api=1&query=victoria+memorial',
+        fileName: 'passport.pdf',
+        fileSize: '5.3 MB',
+        filePath: 'test/docs/passport.pdf',
+        attachmentsJson: jsonEncode([
+          {'name': 'passport.pdf', 'size': '5.3 MB', 'path': 'test/docs/passport.pdf'}
+        ]),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DocumentsManagerDialog(
+              itineraryId: 1,
+              tripTitle: 'Switzerland & Italy',
+              initialDocuments: [sampleDoc],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify Dialog header
+      expect(find.text('Trip Documents & Information'), findsOneWidget);
+
+      // Verify Vertical format: ListView exists and no GridView
+      expect(find.byType(ListView), findsWidgets);
+      expect(find.byType(GridView), findsNothing);
+
+      // Verify Image 1 card styling:
+      // 1. Drag indicator
+      expect(find.byIcon(Icons.drag_indicator_rounded), findsOneWidget);
+      // 2. Circular info icon badge
+      expect(find.byIcon(Icons.info_outline_rounded), findsWidgets);
+      // 3. Uppercase title
+      expect(find.text('PASSPORTS'), findsOneWidget);
+      // 4. Edit button and 3-dots popup menu
+      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+
+      // 5. Rich description text with link
+      expect(find.textContaining('These are your Passports Keep them safe.'), findsOneWidget);
+      expect(find.textContaining('here is link to the place:'), findsOneWidget);
+      expect(find.text('https://www.google.com/maps/search/?api=1&query=victoria+memorial'), findsOneWidget);
+
+      // 6. Attachment pill with paperclip, bold name, friendly file type subtitle, and eye preview button
+      expect(find.byIcon(Icons.attach_file_rounded), findsOneWidget);
+      expect(find.text('passport.pdf'), findsOneWidget);
+      expect(find.text('PDF Document · 5.3 MB'), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+    });
+
+    testWidgets('AddInformationDialog supports editing pre-populated information card', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final docToEdit = TripDocumentItem(
+        id: 'info_hotel_1',
+        itineraryId: 1,
+        docType: 'info',
+        title: 'Hotel Voucher',
+        description: 'Check-in after 2 PM',
+        fileName: 'voucher.pdf',
+        fileSize: '1.2 MB',
+        filePath: 'test/voucher.pdf',
+        locationName: 'Grand Hotel',
+        latitude: 46.2,
+        longitude: 8.5,
+        mapUrl: 'https://maps.google.com/?q=46.2,8.5',
+        attachmentsJson: jsonEncode([
+          {'name': 'voucher.pdf', 'size': '1.2 MB', 'path': 'test/voucher.pdf'}
+        ]),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AddInformationDialog(
+              itineraryId: 1,
+              itemToEdit: docToEdit,
+              onDocumentSaved: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify Edit header & Update button
+      expect(find.text('Edit Information'), findsOneWidget);
+      expect(find.text('Update Information'), findsOneWidget);
+
+      // Verify pre-populated title and description
+      expect(find.text('Hotel Voucher'), findsOneWidget);
+      expect(find.text('Check-in after 2 PM'), findsOneWidget);
+      expect(find.text('Grand Hotel'), findsOneWidget);
+      expect(find.text('voucher.pdf (1.2 MB)'), findsOneWidget);
     });
   });
 }

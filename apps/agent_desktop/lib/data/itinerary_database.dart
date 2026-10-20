@@ -326,6 +326,206 @@ class TripDocumentItem {
       attachmentsJson: map['attachments_json'] as String?,
     );
   }
+
+  TripDocumentItem copyWith({
+    String? id,
+    int? itineraryId,
+    String? eventId,
+    String? docType,
+    String? title,
+    String? description,
+    String? fileName,
+    String? fileSize,
+    String? filePath,
+    String? colorScheme,
+    String? locationName,
+    double? latitude,
+    double? longitude,
+    String? mapUrl,
+    String? attachmentsJson,
+  }) {
+    return TripDocumentItem(
+      id: id ?? this.id,
+      itineraryId: itineraryId ?? this.itineraryId,
+      eventId: eventId ?? this.eventId,
+      docType: docType ?? this.docType,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      fileName: fileName ?? this.fileName,
+      fileSize: fileSize ?? this.fileSize,
+      filePath: filePath ?? this.filePath,
+      colorScheme: colorScheme ?? this.colorScheme,
+      locationName: locationName ?? this.locationName,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      mapUrl: mapUrl ?? this.mapUrl,
+      attachmentsJson: attachmentsJson ?? this.attachmentsJson,
+    );
+  }
+}
+
+/// Normalized 1NF Child Entity for Document Attachments
+class DocumentAttachmentItem {
+  final int? id;
+  final String documentId;
+  final String fileName;
+  final String fileSize;
+  final String filePath;
+  final String? mimeType;
+  final int sortOrder;
+
+  const DocumentAttachmentItem({
+    this.id,
+    required this.documentId,
+    required this.fileName,
+    required this.fileSize,
+    required this.filePath,
+    this.mimeType,
+    this.sortOrder = 0,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      if (id != null) 'id': id,
+      'document_id': documentId,
+      'file_name': fileName,
+      'file_size': fileSize,
+      'file_path': filePath,
+      'mime_type': mimeType,
+      'sort_order': sortOrder,
+    };
+  }
+
+  factory DocumentAttachmentItem.fromMap(Map<String, dynamic> map) {
+    return DocumentAttachmentItem(
+      id: map['id'] as int?,
+      documentId: map['document_id'] as String,
+      fileName: map['file_name'] as String? ?? '',
+      fileSize: map['file_size'] as String? ?? '',
+      filePath: map['file_path'] as String? ?? '',
+      mimeType: map['mime_type'] as String?,
+      sortOrder: map['sort_order'] as int? ?? 0,
+    );
+  }
+}
+
+/// Normalized 1NF Child Entity for Event Notes
+class EventNoteItem {
+  final int? id;
+  final String eventId;
+  final String noteText;
+  final int sortOrder;
+
+  const EventNoteItem({
+    this.id,
+    required this.eventId,
+    required this.noteText,
+    this.sortOrder = 0,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      if (id != null) 'id': id,
+      'event_id': eventId,
+      'note_text': noteText,
+      'sort_order': sortOrder,
+    };
+  }
+
+  factory EventNoteItem.fromMap(Map<String, dynamic> map) {
+    return EventNoteItem(
+      id: map['id'] as int?,
+      eventId: map['event_id'] as String,
+      noteText: map['note_text'] as String? ?? '',
+      sortOrder: map['sort_order'] as int? ?? 0,
+    );
+  }
+}
+
+/// Normalized 1NF Child Entity for Event Photos
+class EventPhotoItem {
+  final int? id;
+  final String eventId;
+  final String photoPath;
+  final String? caption;
+  final int sortOrder;
+
+  const EventPhotoItem({
+    this.id,
+    required this.eventId,
+    required this.photoPath,
+    this.caption,
+    this.sortOrder = 0,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      if (id != null) 'id': id,
+      'event_id': eventId,
+      'photo_path': photoPath,
+      'caption': caption,
+      'sort_order': sortOrder,
+    };
+  }
+
+  factory EventPhotoItem.fromMap(Map<String, dynamic> map) {
+    return EventPhotoItem(
+      id: map['id'] as int?,
+      eventId: map['event_id'] as String,
+      photoPath: map['photo_path'] as String? ?? '',
+      caption: map['caption'] as String?,
+      sortOrder: map['sort_order'] as int? ?? 0,
+    );
+  }
+}
+
+/// Normalized 3NF Entity for Locations
+class TripLocationItem {
+  final int? id;
+  final int itineraryId;
+  final String? documentId;
+  final String? eventId;
+  final String locationName;
+  final double? latitude;
+  final double? longitude;
+  final String? mapUrl;
+
+  const TripLocationItem({
+    this.id,
+    required this.itineraryId,
+    this.documentId,
+    this.eventId,
+    required this.locationName,
+    this.latitude,
+    this.longitude,
+    this.mapUrl,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      if (id != null) 'id': id,
+      'itinerary_id': itineraryId,
+      'document_id': documentId,
+      'event_id': eventId,
+      'location_name': locationName,
+      'latitude': latitude,
+      'longitude': longitude,
+      'map_url': mapUrl,
+    };
+  }
+
+  factory TripLocationItem.fromMap(Map<String, dynamic> map) {
+    return TripLocationItem(
+      id: map['id'] as int?,
+      itineraryId: map['itinerary_id'] as int,
+      documentId: map['document_id'] as String?,
+      eventId: map['event_id'] as String?,
+      locationName: map['location_name'] as String? ?? '',
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
+      mapUrl: map['map_url'] as String?,
+    );
+  }
 }
 
 class ItineraryDatabase {
@@ -370,7 +570,10 @@ class ItineraryDatabase {
 
     final db = await openDatabase(
       dbPath,
-      version: 5,
+      version: 6,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON;');
+      },
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -399,9 +602,13 @@ class ItineraryDatabase {
         if (oldVersion < 5) {
           await _ensureDocumentColumns(db);
         }
+        if (oldVersion < 6) {
+          await _createEventAndDocTables(db);
+        }
       },
     );
 
+    await _createEventAndDocTables(db);
     await _ensureDocumentColumns(db);
     return db;
   }
@@ -421,6 +628,7 @@ class ItineraryDatabase {
   }
 
   static Future<void> _createEventAndDocTables(Database db) async {
+    // 1. Trip Events Table (Child of itineraries)
     await db.execute('''
       CREATE TABLE IF NOT EXISTS trip_events (
         id TEXT PRIMARY KEY,
@@ -441,6 +649,32 @@ class ItineraryDatabase {
       )
     ''');
 
+    // 2. Event Notes Table (Normalized 1NF Child of trip_events)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS event_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT NOT NULL,
+        note_text TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // 3. Event Photos Table (Normalized 1NF Child of trip_events)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS event_photos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT NOT NULL,
+        photo_path TEXT NOT NULL,
+        caption TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // 4. Trip Documents Table (Child of itineraries, optional link to trip_events)
     await db.execute('''
       CREATE TABLE IF NOT EXISTS trip_documents (
         id TEXT PRIMARY KEY,
@@ -462,6 +696,49 @@ class ItineraryDatabase {
         FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE SET NULL
       )
     ''');
+
+    // 5. Document Attachments Table (Normalized 1NF Child of trip_documents)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS document_attachments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        document_id TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        file_size TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        mime_type TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (document_id) REFERENCES trip_documents(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // 6. Trip Locations Table (Normalized 3NF Entity for Locations)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS trip_locations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        itinerary_id INTEGER NOT NULL,
+        document_id TEXT,
+        event_id TEXT,
+        location_name TEXT NOT NULL,
+        latitude REAL,
+        longitude REAL,
+        map_url TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE,
+        FOREIGN KEY (document_id) REFERENCES trip_documents(id) ON DELETE CASCADE,
+        FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE SET NULL
+      )
+    ''');
+
+    // Performance Indexes on Foreign Keys
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_events_itinerary ON trip_events(itinerary_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_docs_itinerary ON trip_documents(itinerary_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_docs_event ON trip_documents(event_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_event_notes ON event_notes(event_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_event_photos ON event_photos(event_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_doc_attachments ON document_attachments(document_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_locations_itinerary ON trip_locations(itinerary_id);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_locations_doc ON trip_locations(document_id);');
 
     for (final col in [
       'location_name TEXT',
@@ -576,17 +853,53 @@ class ItineraryDatabase {
 
   Future<int> insertEvent(TripEventItem event) async {
     final db = await database;
-    return await db.insert('trip_events', event.toMap());
+    final res = await db.insert('trip_events', event.toMap());
+    try {
+      for (int i = 0; i < event.notes.length; i++) {
+        await db.insert('event_notes', {
+          'event_id': event.id,
+          'note_text': event.notes[i],
+          'sort_order': i,
+        });
+      }
+      for (int i = 0; i < event.photos.length; i++) {
+        await db.insert('event_photos', {
+          'event_id': event.id,
+          'photo_path': event.photos[i],
+          'sort_order': i,
+        });
+      }
+    } catch (_) {}
+    return res;
   }
 
   Future<int> updateEvent(TripEventItem event) async {
     final db = await database;
-    return await db.update(
+    final count = await db.update(
       'trip_events',
       event.toMap(),
       where: 'id = ?',
       whereArgs: [event.id],
     );
+    try {
+      await db.delete('event_notes', where: 'event_id = ?', whereArgs: [event.id]);
+      for (int i = 0; i < event.notes.length; i++) {
+        await db.insert('event_notes', {
+          'event_id': event.id,
+          'note_text': event.notes[i],
+          'sort_order': i,
+        });
+      }
+      await db.delete('event_photos', where: 'event_id = ?', whereArgs: [event.id]);
+      for (int i = 0; i < event.photos.length; i++) {
+        await db.insert('event_photos', {
+          'event_id': event.id,
+          'photo_path': event.photos[i],
+          'sort_order': i,
+        });
+      }
+    } catch (_) {}
+    return count;
   }
 
   Future<int> deleteEvent(String eventId) async {
@@ -617,17 +930,116 @@ class ItineraryDatabase {
       whereArgs: [itineraryId],
       orderBy: 'id ASC',
     );
-    return maps.map((m) => TripDocumentItem.fromMap(m)).toList();
+    final docs = maps.map((m) => TripDocumentItem.fromMap(m)).toList();
+    for (int i = 0; i < docs.length; i++) {
+      final d = docs[i];
+      if (d.attachments.isEmpty) {
+        try {
+          final childRows = await db.query(
+            'document_attachments',
+            where: 'document_id = ?',
+            whereArgs: [d.id],
+            orderBy: 'sort_order ASC',
+          );
+          if (childRows.isNotEmpty) {
+            final atts = childRows.map((r) => {
+              'name': r['file_name'] as String? ?? '',
+              'size': r['file_size'] as String? ?? '',
+              'path': r['file_path'] as String? ?? '',
+            }).toList();
+            docs[i] = d.copyWith(attachmentsJson: jsonEncode(atts));
+          }
+        } catch (_) {}
+      }
+    }
+    return docs;
   }
 
   Future<int> insertDocument(TripDocumentItem doc) async {
     final db = await database;
+    int res = 0;
     try {
-      return await db.insert('trip_documents', doc.toMap());
+      res = await db.insert('trip_documents', doc.toMap());
     } catch (_) {
       await _ensureDocumentColumns(db);
-      return await db.insert('trip_documents', doc.toMap());
+      res = await db.insert('trip_documents', doc.toMap());
     }
+
+    try {
+      for (int i = 0; i < doc.attachments.length; i++) {
+        final att = doc.attachments[i];
+        await db.insert('document_attachments', {
+          'document_id': doc.id,
+          'file_name': att['name'] ?? '',
+          'file_size': att['size'] ?? '',
+          'file_path': att['path'] ?? '',
+          'sort_order': i,
+        });
+      }
+      if (doc.hasLocation) {
+        await db.insert('trip_locations', {
+          'itinerary_id': doc.itineraryId,
+          'document_id': doc.id,
+          'event_id': doc.eventId,
+          'location_name': doc.locationName ?? '',
+          'latitude': doc.latitude,
+          'longitude': doc.longitude,
+          'map_url': doc.mapUrl,
+        });
+      }
+    } catch (_) {}
+
+    return res;
+  }
+
+  Future<int> updateDocument(TripDocumentItem doc) async {
+    final db = await database;
+    int count = 0;
+    try {
+      count = await db.update(
+        'trip_documents',
+        doc.toMap(),
+        where: 'id = ?',
+        whereArgs: [doc.id],
+      );
+    } catch (_) {
+      await _ensureDocumentColumns(db);
+      count = await db.update(
+        'trip_documents',
+        doc.toMap(),
+        where: 'id = ?',
+        whereArgs: [doc.id],
+      );
+    }
+
+    try {
+      await db.delete('document_attachments', where: 'document_id = ?', whereArgs: [doc.id]);
+      for (int i = 0; i < doc.attachments.length; i++) {
+        final att = doc.attachments[i];
+        await db.insert('document_attachments', {
+          'document_id': doc.id,
+          'file_name': att['name'] ?? '',
+          'file_size': att['size'] ?? '',
+          'file_path': att['path'] ?? '',
+          'sort_order': i,
+        });
+      }
+
+      await db.delete('trip_locations', where: 'document_id = ?', whereArgs: [doc.id]);
+      if (doc.hasLocation) {
+        await db.insert('trip_locations', {
+          'itinerary_id': doc.itineraryId,
+          'document_id': doc.id,
+          'event_id': doc.eventId,
+          'location_name': doc.locationName ?? '',
+          'latitude': doc.latitude,
+          'longitude': doc.longitude,
+          'map_url': doc.mapUrl,
+        });
+      }
+    } catch (_) {}
+
+    return count;
   }
 
   Future<int> deleteDocument(String docId) async {
