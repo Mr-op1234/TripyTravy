@@ -575,54 +575,81 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
     } catch (_) {}
   }
 
+  bool _isSaving = false;
+
   // --- Save ---
   Future<void> _save() async {
-    final title = _titleController.text.trim();
-    if (title.isEmpty) {
-      setState(() => _errorMessage = 'Information Title is required');
-      return;
-    }
+    if (_isSaving) return;
 
-    final List<Map<String, String>> savedAttachments = [];
-    for (final f in _attachedFiles) {
-      if (f.path != null) {
-        final savedPath = await ItineraryDatabase.saveDocumentToAppStorage(f.path!);
-        final sizeBytes = _getFileSizeBytes(f);
-        final sizeKb = sizeBytes / 1024;
-        final sizeStr = sizeKb > 1024
-            ? '${(sizeKb / 1024).toStringAsFixed(1)} MB'
-            : '${sizeKb.toStringAsFixed(1)} KB';
-        savedAttachments.add({
-          'name': f.name,
-          'size': sizeStr,
-          'path': savedPath,
-        });
+    var title = _titleController.text.trim();
+    if (title.isEmpty) {
+      if (_fetchedLocation != null && _fetchedLocation!.locationName.trim().isNotEmpty) {
+        title = _fetchedLocation!.locationName.trim();
+      } else if (_attachedFiles.isNotEmpty) {
+        title = _attachedFiles.first.name;
+      } else if (_descriptionController.text.trim().isNotEmpty) {
+        final firstLine = _descriptionController.text.trim().split('\n').first.trim();
+        title = firstLine.length > 50 ? '${firstLine.substring(0, 50)}...' : firstLine;
+      } else {
+        title = 'Trip Information';
       }
     }
 
-    final primary = savedAttachments.isNotEmpty ? savedAttachments.first : null;
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
 
-    final docItem = TripDocumentItem(
-      id: 'info_${DateTime.now().millisecondsSinceEpoch}',
-      itineraryId: widget.itineraryId,
-      eventId: widget.availableEvents.isNotEmpty ? widget.availableEvents.first.id : null,
-      docType: _fetchedLocation != null ? 'location' : 'info',
-      title: title,
-      description: _descriptionController.text.trim(),
-      fileName: primary != null ? primary['name']! : (_fetchedLocation != null ? 'Location' : 'Information'),
-      fileSize: primary != null ? primary['size']! : '',
-      filePath: primary != null ? primary['path']! : '',
-      colorScheme: _fetchedLocation != null ? 'blue' : 'emerald',
-      locationName: _fetchedLocation?.locationName,
-      latitude: _fetchedLocation?.latitude,
-      longitude: _fetchedLocation?.longitude,
-      mapUrl: _fetchedLocation?.rawUrl,
-      attachmentsJson: savedAttachments.isNotEmpty ? jsonEncode(savedAttachments) : null,
-    );
+    try {
+      final List<Map<String, String>> savedAttachments = [];
+      for (final f in _attachedFiles) {
+        if (f.path != null) {
+          final savedPath = await ItineraryDatabase.saveDocumentToAppStorage(f.path!);
+          final sizeBytes = _getFileSizeBytes(f);
+          final sizeKb = sizeBytes / 1024;
+          final sizeStr = sizeKb > 1024
+              ? '${(sizeKb / 1024).toStringAsFixed(1)} MB'
+              : '${sizeKb.toStringAsFixed(1)} KB';
+          savedAttachments.add({
+            'name': f.name,
+            'size': sizeStr,
+            'path': savedPath,
+          });
+        }
+      }
 
-    await ItineraryDatabase.instance.insertDocument(docItem);
-    widget.onDocumentSaved();
-    if (mounted) Navigator.pop(context);
+      final primary = savedAttachments.isNotEmpty ? savedAttachments.first : null;
+
+      final docItem = TripDocumentItem(
+        id: 'info_${DateTime.now().millisecondsSinceEpoch}',
+        itineraryId: widget.itineraryId,
+        eventId: widget.availableEvents.isNotEmpty ? widget.availableEvents.first.id : null,
+        docType: _fetchedLocation != null ? 'location' : 'info',
+        title: title,
+        description: _descriptionController.text.trim(),
+        fileName: primary != null ? primary['name']! : (_fetchedLocation != null ? 'Location' : 'Information'),
+        fileSize: primary != null ? primary['size']! : '',
+        filePath: primary != null ? primary['path']! : '',
+        colorScheme: _fetchedLocation != null ? 'blue' : 'emerald',
+        locationName: _fetchedLocation?.locationName,
+        latitude: _fetchedLocation?.latitude,
+        longitude: _fetchedLocation?.longitude,
+        mapUrl: _fetchedLocation?.rawUrl,
+        attachmentsJson: savedAttachments.isNotEmpty ? jsonEncode(savedAttachments) : null,
+      );
+
+      await ItineraryDatabase.instance.insertDocument(docItem);
+      widget.onDocumentSaved();
+      if (mounted) Navigator.pop(context);
+    } catch (e, stack) {
+      debugPrint('Error saving information: $e\n$stack');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Could not save: $e';
+          _isSaving = false;
+        });
+      }
+    }
   }
 
 
@@ -1004,15 +1031,32 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
 
             // Modal Actions
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                if (_errorMessage != null)
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 16),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12.5, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const Spacer(),
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: _isSaving ? null : () => Navigator.pop(context),
                   child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: _save,
+                  onPressed: _isSaving ? null : _save,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
@@ -1020,7 +1064,13 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     elevation: 0,
                   ),
-                  child: const Text('Save Information', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Save Information', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),

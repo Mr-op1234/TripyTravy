@@ -368,9 +368,9 @@ class ItineraryDatabase {
       dbPath = p.join(dbFolder, fileName);
     }
 
-    return await openDatabase(
+    final db = await openDatabase(
       dbPath,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -396,8 +396,28 @@ class ItineraryDatabase {
           } catch (_) {}
           await _createEventAndDocTables(db);
         }
+        if (oldVersion < 5) {
+          await _ensureDocumentColumns(db);
+        }
       },
     );
+
+    await _ensureDocumentColumns(db);
+    return db;
+  }
+
+  static Future<void> _ensureDocumentColumns(Database db) async {
+    for (final col in [
+      'location_name TEXT',
+      'latitude REAL',
+      'longitude REAL',
+      'map_url TEXT',
+      'attachments_json TEXT',
+    ]) {
+      try {
+        await db.execute('ALTER TABLE trip_documents ADD COLUMN $col');
+      } catch (_) {}
+    }
   }
 
   static Future<void> _createEventAndDocTables(Database db) async {
@@ -602,7 +622,12 @@ class ItineraryDatabase {
 
   Future<int> insertDocument(TripDocumentItem doc) async {
     final db = await database;
-    return await db.insert('trip_documents', doc.toMap());
+    try {
+      return await db.insert('trip_documents', doc.toMap());
+    } catch (_) {
+      await _ensureDocumentColumns(db);
+      return await db.insert('trip_documents', doc.toMap());
+    }
   }
 
   Future<int> deleteDocument(String docId) async {
