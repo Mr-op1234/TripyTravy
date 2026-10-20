@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../data/itinerary_database.dart';
 import 'dialogs/change_banner_dialog.dart';
 import 'dialogs/documents_dialog.dart';
@@ -84,33 +83,6 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         _expandedEventIds.add(id);
       }
     });
-  }
-
-  Future<void> _toggleLike() async {
-    final newLikeState = !_currentTrip.isLiked;
-    await ItineraryDatabase.instance.toggleLike(_currentTrip.id, newLikeState);
-    setState(() {
-      _currentTrip = _currentTrip.copyWith(isLiked: newLikeState);
-    });
-  }
-
-  void _copyMobileCode() {
-    final code = _currentTrip.effectiveTripCode;
-    Clipboard.setData(ClipboardData(text: code));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF0F172A),
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF10B981), size: 18),
-            const SizedBox(width: 8),
-            Text('Mobile Code "$code" copied to clipboard!'),
-          ],
-        ),
-        duration: const Duration(milliseconds: 2200),
-      ),
-    );
   }
 
   void _openMaps(String location) {
@@ -378,34 +350,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                     ),
                   ),
 
-                  // Right Controls: Heart, Change Banner, 3-dots
+                  // Right Controls: Change Banner, 3-dots
                   Row(
                     children: [
-                      // Like Heart
-                      Material(
-                        color: Colors.black.withValues(alpha: 0.38),
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: _toggleLike,
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-                            ),
-                            child: Icon(
-                              _currentTrip.isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                              color: _currentTrip.isLiked ? const Color(0xFFEF4444) : Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
                       // Change Banner Button
                       Material(
                         color: Colors.black.withValues(alpha: 0.38),
@@ -531,53 +478,6 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                           runSpacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            // Mobile Code Pill
-                            InkWell(
-                              onTap: _copyMobileCode,
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.22),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.phone_android_rounded, color: Colors.white, size: 14),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Mobile Code: ${_currentTrip.effectiveTripCode}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 12,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.28),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Text(
-                                        'COPY',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 9.5,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
                             // Duration
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),

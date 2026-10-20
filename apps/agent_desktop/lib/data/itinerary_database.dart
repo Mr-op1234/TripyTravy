@@ -14,10 +14,8 @@ class DestinationItem {
   final String imagePath;
   final String? startDate;
   final String? endDate;
-  final String? tripCode;
   final String? tagline;
   final String? description;
-  final bool isLiked;
 
   const DestinationItem({
     required this.id,
@@ -28,21 +26,9 @@ class DestinationItem {
     required this.imagePath,
     this.startDate,
     this.endDate,
-    this.tripCode,
     this.tagline,
     this.description,
-    this.isLiked = false,
   });
-
-  String get effectiveTripCode {
-    if (tripCode != null && tripCode!.trim().isNotEmpty) {
-      return tripCode!.trim();
-    }
-    final clean = title.replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
-    final prefix = clean.length >= 4 ? clean.substring(0, clean.length >= 5 ? 5 : 4) : clean.padRight(4, 'X');
-    final numCode = ((id * 1337 + 3141) % 9000 + 1000);
-    return 'TC-$prefix-$numCode';
-  }
 
   String get effectiveTagline {
     if (tagline != null && tagline!.trim().isNotEmpty) {
@@ -68,10 +54,8 @@ class DestinationItem {
       'image_path': imagePath,
       'start_date': startDate,
       'end_date': endDate,
-      'trip_code': tripCode,
       'tagline': tagline,
       'description': description,
-      'is_liked': isLiked ? 1 : 0,
     };
   }
 
@@ -85,10 +69,8 @@ class DestinationItem {
       imagePath: map['image_path'] as String,
       startDate: map['start_date'] as String?,
       endDate: map['end_date'] as String?,
-      tripCode: map['trip_code'] as String?,
       tagline: map['tagline'] as String?,
       description: map['description'] as String?,
-      isLiked: (map['is_liked'] as int? ?? 0) == 1,
     );
   }
 
@@ -101,10 +83,8 @@ class DestinationItem {
     String? imagePath,
     String? startDate,
     String? endDate,
-    String? tripCode,
     String? tagline,
     String? description,
-    bool? isLiked,
   }) {
     return DestinationItem(
       id: id ?? this.id,
@@ -115,10 +95,8 @@ class DestinationItem {
       imagePath: imagePath ?? this.imagePath,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
-      tripCode: tripCode ?? this.tripCode,
       tagline: tagline ?? this.tagline,
       description: description ?? this.description,
-      isLiked: isLiked ?? this.isLiked,
     );
   }
 }
@@ -427,10 +405,8 @@ class ItineraryDatabase {
         image_path TEXT NOT NULL,
         start_date TEXT,
         end_date TEXT,
-        trip_code TEXT,
         tagline TEXT,
-        description TEXT,
-        is_liked INTEGER DEFAULT 0
+        description TEXT
       )
     ''');
 
@@ -460,7 +436,6 @@ class ItineraryDatabase {
     required String imagePath,
     String? startDate,
     String? endDate,
-    String? tripCode,
     String? tagline,
     String? description,
   }) async {
@@ -473,10 +448,8 @@ class ItineraryDatabase {
       'image_path': imagePath,
       'start_date': startDate,
       'end_date': endDate,
-      'trip_code': tripCode,
       'tagline': tagline,
       'description': description,
-      'is_liked': 0,
     });
     return DestinationItem(
       id: id,
@@ -487,10 +460,8 @@ class ItineraryDatabase {
       imagePath: imagePath,
       startDate: startDate,
       endDate: endDate,
-      tripCode: tripCode,
       tagline: tagline,
       description: description,
-      isLiked: false,
     );
   }
 
@@ -506,16 +477,6 @@ class ItineraryDatabase {
       item.toMap(),
       where: 'id = ?',
       whereArgs: [item.id],
-    );
-  }
-
-  Future<int> toggleLike(int id, bool isLiked) async {
-    final db = await database;
-    return await db.update(
-      'itineraries',
-      {'is_liked': isLiked ? 1 : 0},
-      where: 'id = ?',
-      whereArgs: [id],
     );
   }
 

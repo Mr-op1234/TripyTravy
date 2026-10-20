@@ -31,10 +31,8 @@ void main() {
                 image_path TEXT NOT NULL,
                 start_date TEXT,
                 end_date TEXT,
-                trip_code TEXT,
                 tagline TEXT,
-                description TEXT,
-                is_liked INTEGER DEFAULT 0
+                description TEXT
               )
             ''');
 
@@ -304,10 +302,12 @@ void main() {
       // Verify Header & Banner
       expect(find.text('My Trips'), findsOneWidget);
       expect(find.text('Switzerland & Italy'), findsOneWidget);
-      expect(find.textContaining('Mobile Code:'), findsOneWidget);
       expect(find.text('30 Days'), findsOneWidget);
       expect(find.text('01-09-2030 -> 30-09-2030'), findsOneWidget);
       expect(find.text('Change Banner'), findsOneWidget);
+      expect(find.textContaining('Mobile Code'), findsNothing);
+      expect(find.byIcon(Icons.favorite_rounded), findsNothing);
+      expect(find.byIcon(Icons.favorite_border_rounded), findsNothing);
 
       // Verify Documents trigger card
       expect(find.text('Information and documents'), findsOneWidget);
