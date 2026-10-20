@@ -248,27 +248,22 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1200),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 1. Panoramic Hero Banner
-                      _buildHeroBanner(),
-                      const SizedBox(height: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. Panoramic Hero Banner
+                  _buildHeroBanner(),
+                  const SizedBox(height: 20),
 
-                      // 2. Information and Documents Trigger Card
-                      _buildDocumentsTriggerCard(),
-                      const SizedBox(height: 24),
+                  // 2. Information and Documents Trigger Card
+                  _buildDocumentsTriggerCard(),
+                  const SizedBox(height: 24),
 
-                      // 3. Itinerary Day-by-Day Section
-                      _buildItinerarySection(allExpanded),
-                      const SizedBox(height: 60),
-                    ],
-                  ),
-                ),
+                  // 3. Itinerary Day-by-Day Section
+                  _buildItinerarySection(allExpanded),
+                  const SizedBox(height: 60),
+                ],
               ),
             ),
     );
@@ -610,7 +605,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
                         // Trip Description
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 680),
+                          constraints: const BoxConstraints(maxWidth: 850),
                           child: Text(
                             _currentTrip.effectiveDescription,
                             style: TextStyle(
