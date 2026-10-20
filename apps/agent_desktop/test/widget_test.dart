@@ -5,6 +5,7 @@ import 'package:agent_desktop/data/itinerary_database.dart';
 import 'package:agent_desktop/ui/dashboard_screen.dart';
 import 'package:agent_desktop/ui/trip_detail_screen.dart';
 import 'package:agent_desktop/ui/widgets/smooth_scroll.dart';
+import 'package:agent_desktop/ui/widgets/rich_description_editor.dart';
 import 'package:agent_desktop/data/google_maps_helper.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -352,10 +353,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
 
-      // Verify AddInformationDialog fields (Image 2 requirements)
+      // Verify AddInformationDialog fields (as shown in user mockup)
       expect(find.text('Add Information'), findsOneWidget);
-      expect(find.text('Information Title *'), findsOneWidget);
-      expect(find.text('Information Description'), findsOneWidget);
+      expect(find.text('Title *'), findsOneWidget);
+      expect(find.text('Description'), findsWidgets);
       expect(find.text('Attach Documents'), findsOneWidget);
       expect(find.text('Location Card (Google Maps)'), findsOneWidget);
 
@@ -422,6 +423,50 @@ void main() {
       // Settle animation to target
       await tester.pumpAndSettle();
       expect(controller.offset, closeTo(80.0, 1.0));
+    });
+
+    testWidgets('RichDescriptionEditor formats bold, lists, eraser, and handles undo/redo', (tester) async {
+      final controller = TextEditingController(text: 'Swiss Flight');
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RichDescriptionEditor(controller: controller),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify B, I, link, lists, and tools are rendered
+      expect(find.text('B'), findsOneWidget);
+      expect(find.text('I'), findsOneWidget);
+      expect(find.byIcon(Icons.link_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.format_list_bulleted_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.undo_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.redo_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.crop_free_rounded), findsOneWidget);
+
+      // Select text and click B (Bold)
+      controller.selection = const TextSelection(baseOffset: 0, extentOffset: 12);
+      await tester.tap(find.text('B'));
+      await tester.pumpAndSettle();
+      expect(controller.text, '**Swiss Flight**');
+
+      // Click Undo
+      await tester.tap(find.byIcon(Icons.undo_rounded));
+      await tester.pumpAndSettle();
+      expect(controller.text, 'Swiss Flight');
+
+      // Click Redo
+      await tester.tap(find.byIcon(Icons.redo_rounded));
+      await tester.pumpAndSettle();
+      expect(controller.text, '**Swiss Flight**');
+
+      // Click Clear Formatting (Eraser)
+      await tester.tap(find.byTooltip('Clear Formatting'));
+      await tester.pumpAndSettle();
+      expect(controller.text, 'Swiss Flight');
     });
   });
 }

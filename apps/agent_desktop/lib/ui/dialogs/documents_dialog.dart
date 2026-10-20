@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../data/itinerary_database.dart';
 import '../../data/google_maps_helper.dart';
+import '../widgets/rich_description_editor.dart';
 
 class DocumentsManagerDialog extends StatefulWidget {
   final int itineraryId;
@@ -461,43 +462,6 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
     super.dispose();
   }
 
-  // --- Description Formatting Actions ---
-  void _formatSelection(String prefix, [String suffix = '']) {
-    final text = _descriptionController.text;
-    final selection = _descriptionController.selection;
-    if (!selection.isValid) {
-      _descriptionController.text = '$text$prefix$suffix';
-      return;
-    }
-    final selectedText = selection.textInside(text);
-    final newText = text.replaceRange(
-      selection.start,
-      selection.end,
-      '$prefix$selectedText$suffix',
-    );
-    _descriptionController.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(
-        offset: selection.start + prefix.length + selectedText.length + suffix.length,
-      ),
-    );
-  }
-
-  void _formatLine(String prefix) {
-    final text = _descriptionController.text;
-    final selection = _descriptionController.selection;
-    if (!selection.isValid) {
-      _descriptionController.text = '$prefix$text';
-      return;
-    }
-    final start = selection.start;
-    final lineStart = text.lastIndexOf('\n', start - 1) + 1;
-    final newText = text.replaceRange(lineStart, lineStart, prefix);
-    _descriptionController.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: selection.end + prefix.length),
-    );
-  }
 
   int _getFileSizeBytes(PlatformFile f) {
     final syncLen = f.lengthSync();
@@ -661,116 +625,6 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
     if (mounted) Navigator.pop(context);
   }
 
-  // --- Formatting Toolbar Widget ---
-  Widget _buildToolbarButton({
-    String? label,
-    IconData? icon,
-    required String tooltip,
-    required VoidCallback onPressed,
-    bool isBold = false,
-    bool isItalic = false,
-    bool isUnderline = false,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: const Color(0xFFCBD5E1)),
-          ),
-          child: icon != null
-              ? Icon(icon, size: 14, color: const Color(0xFF334155))
-              : Text(
-                  label!,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: const Color(0xFF334155),
-                    fontWeight: isBold ? FontWeight.w900 : FontWeight.bold,
-                    fontStyle: isItalic ? FontStyle.italic : FontStyle.normal,
-                    decoration: isUnderline ? TextDecoration.underline : TextDecoration.none,
-                  ),
-                ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFormattingToolbar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
-        border: Border(
-          top: BorderSide(color: Color(0xFFCBD5E1)),
-          left: BorderSide(color: Color(0xFFCBD5E1)),
-          right: BorderSide(color: Color(0xFFCBD5E1)),
-        ),
-      ),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 4,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          _buildToolbarButton(
-            label: 'B',
-            tooltip: 'Bold (**text**)',
-            isBold: true,
-            onPressed: () => _formatSelection('**', '**'),
-          ),
-          _buildToolbarButton(
-            label: 'I',
-            tooltip: 'Italic (*text*)',
-            isItalic: true,
-            onPressed: () => _formatSelection('*', '*'),
-          ),
-          _buildToolbarButton(
-            label: 'U',
-            tooltip: 'Underline (<u>text</u>)',
-            isUnderline: true,
-            onPressed: () => _formatSelection('<u>', '</u>'),
-          ),
-          const SizedBox(width: 4),
-          _buildToolbarButton(
-            label: 'H1',
-            tooltip: 'Header 1 (# )',
-            onPressed: () => _formatLine('# '),
-          ),
-          _buildToolbarButton(
-            label: 'H2',
-            tooltip: 'Header 2 (## )',
-            onPressed: () => _formatLine('## '),
-          ),
-          const SizedBox(width: 4),
-          _buildToolbarButton(
-            icon: Icons.format_list_bulleted_rounded,
-            tooltip: 'Bulleted List (- )',
-            onPressed: () => _formatLine('- '),
-          ),
-          _buildToolbarButton(
-            icon: Icons.format_list_numbered_rounded,
-            tooltip: 'Numbered List (1. )',
-            onPressed: () => _formatLine('1. '),
-          ),
-          _buildToolbarButton(
-            icon: Icons.format_quote_rounded,
-            tooltip: 'Blockquote (> )',
-            onPressed: () => _formatLine('> '),
-          ),
-          _buildToolbarButton(
-            icon: Icons.link_rounded,
-            tooltip: 'Link ([title](url))',
-            onPressed: () => _formatSelection('[', '](https://)'),
-          ),
-        ],
-      ),
-    );
-  }
 
   // --- Location Card Widget ---
   Widget _buildLocationCard(GoogleMapsLocation loc) {
@@ -916,42 +770,75 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. Information Title
-                    const Text(
-                      'Information Title *',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _titleController,
-                      decoration: InputDecoration(
-                        hintText: 'e.g., Swiss Pass & Rail Guidelines, Hotel Check-in Info, Visas...',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // 2. Information Description (TravChad Rich Format)
-                    const Text(
-                      'Information Description',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
-                    ),
-                    const SizedBox(height: 6),
-                    _buildFormattingToolbar(),
-                    TextField(
-                      controller: _descriptionController,
-                      minLines: 4,
-                      maxLines: 8,
-                      decoration: const InputDecoration(
-                        hintText: 'Write detailed information, guidelines, notes, or bullet points...',
-                        contentPadding: EdgeInsets.all(12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+                    // 1. Information Title (as shown in image)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(
+                          width: 140,
+                          child: Text(
+                            'Title *',
+                            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                          ),
                         ),
-                      ),
+                        Expanded(
+                          child: TextField(
+                            controller: _titleController,
+                            style: const TextStyle(fontSize: 14.5, color: Color(0xFF1E293B)),
+                            decoration: InputDecoration(
+                              hintText: 'e.g. Flight booking confirmation',
+                              hintStyle: const TextStyle(fontSize: 14.5, color: Color(0xFF94A3B8)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 18),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Divider(color: Color(0xFFF1F5F9), height: 1, thickness: 1.2),
+                    ),
+
+                    // 2. Information Description (Rich Editor as shown in image)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 10),
+                          child: SizedBox(
+                            width: 140,
+                            child: Text(
+                              'Description',
+                              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: RichDescriptionEditor(
+                            controller: _descriptionController,
+                            placeholder: 'Write description here...',
+                            minLines: 5,
+                            maxLines: 9,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Divider(color: Color(0xFFF1F5F9), height: 1, thickness: 1.2),
+                    ),
 
                     // 3. Attach Documents Section
                     Row(

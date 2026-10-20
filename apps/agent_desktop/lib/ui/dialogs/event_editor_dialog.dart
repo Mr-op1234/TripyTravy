@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../data/itinerary_database.dart';
+import '../widgets/rich_description_editor.dart';
 
 class EventEditorDialog extends StatefulWidget {
   final int itineraryId;
@@ -428,14 +429,11 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
               // Description
               const Text('Description', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
               const SizedBox(height: 6),
-              TextField(
+              RichDescriptionEditor(
                 controller: _descriptionController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: 'Detailed itinerary notes, schedule milestones, and check-in instructions...',
-                  contentPadding: const EdgeInsets.all(12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
+                placeholder: 'Detailed itinerary notes, schedule milestones, and check-in instructions...',
+                minLines: 3,
+                maxLines: 6,
               ),
               const SizedBox(height: 14),
 
