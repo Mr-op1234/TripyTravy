@@ -214,6 +214,7 @@ void main() {
       expect(find.text('Trip Banner'), findsOneWidget);
       expect(find.text('No Banner Selected'), findsOneWidget);
       expect(find.text('Upload from Folder'), findsOneWidget);
+      expect(find.text('Paste URL'), findsOneWidget);
       expect(find.text('Trip Title *'), findsOneWidget);
       expect(find.text('Trip Description'), findsOneWidget);
       expect(find.text('Start Date *'), findsOneWidget);

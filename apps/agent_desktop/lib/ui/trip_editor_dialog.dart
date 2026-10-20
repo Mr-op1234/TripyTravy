@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../data/itinerary_database.dart';
+import 'dialogs/change_banner_dialog.dart';
 
 class TripEditorDialog extends StatefulWidget {
   final DestinationItem? itemToEdit;
@@ -188,9 +189,34 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
     Navigator.pop(context);
   }
 
+  void _openChangeBannerDialog({int initialTab = 0}) {
+    showDialog(
+      context: context,
+      builder: (_) => ChangeBannerDialog(
+        currentBannerPath: _bannerPath,
+        initialTabIndex: initialTab,
+        onBannerSelected: (newPath) {
+          setState(() {
+            _bannerPath = newPath;
+            _errorMessage = null;
+          });
+        },
+      ),
+    );
+  }
+
   Widget _buildBannerPreview() {
     if (_bannerPath.isEmpty) {
       return _buildPlaceholder();
+    }
+    if (_bannerPath.startsWith('http://') || _bannerPath.startsWith('https://')) {
+      return Image.network(
+        _bannerPath,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, __, ___) => _buildPlaceholder(),
+      );
     }
     if (_bannerPath.startsWith('assets/')) {
       return Image.asset(
@@ -216,7 +242,7 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
 
   Widget _buildPlaceholder() {
     return InkWell(
-      onTap: _pickBanner,
+      onTap: () => _openChangeBannerDialog(initialTab: 0),
       child: Container(
         color: const Color(0xFFF1F5F9),
         alignment: Alignment.center,
@@ -239,7 +265,7 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
             ),
             const SizedBox(height: 2),
             const Text(
-              'Click to upload from folder',
+              'Upload from folder or paste image URL',
               style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
             ),
           ],
@@ -341,23 +367,47 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
                     Positioned(
                       bottom: 8,
                       right: 8,
-                      child: ElevatedButton.icon(
-                        onPressed: _pickBanner,
-                        icon: const Icon(Icons.folder_open_rounded, size: 15, color: Colors.white),
-                        label: Text(
-                          _bannerPath.isEmpty ? 'Upload from Folder' : 'Change Image',
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _pickBanner,
+                            icon: const Icon(Icons.folder_open_rounded, size: 14, color: Colors.white),
+                            label: Text(
+                              _bannerPath.isEmpty ? 'Upload from Folder' : 'Change Image',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black.withValues(alpha: 0.72),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              elevation: 0,
+                            ),
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black.withValues(alpha: 0.72),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          elevation: 0,
-                        ),
+                          const SizedBox(width: 6),
+                          ElevatedButton.icon(
+                            onPressed: () => _openChangeBannerDialog(initialTab: 1),
+                            icon: const Icon(Icons.link_rounded, size: 14, color: Colors.white),
+                            label: const Text(
+                              'Paste URL',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black.withValues(alpha: 0.72),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              elevation: 0,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

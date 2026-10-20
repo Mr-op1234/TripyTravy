@@ -782,6 +782,13 @@ class _ItineraryCardState extends State<ItineraryCard> {
     if (path.isEmpty) {
       return _buildFallbackBanner(fallbackTitle);
     }
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildFallbackBanner(fallbackTitle),
+      );
+    }
     if (path.startsWith('assets/')) {
       return Image.asset(
         path,

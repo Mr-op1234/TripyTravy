@@ -6,11 +6,13 @@ import '../../data/itinerary_database.dart';
 class ChangeBannerDialog extends StatefulWidget {
   final String currentBannerPath;
   final ValueChanged<String> onBannerSelected;
+  final int initialTabIndex;
 
   const ChangeBannerDialog({
     super.key,
     required this.currentBannerPath,
     required this.onBannerSelected,
+    this.initialTabIndex = 0,
   });
 
   @override
@@ -42,7 +44,11 @@ class _ChangeBannerDialogState extends State<ChangeBannerDialog>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 2),
+    );
     _selectedPath = widget.currentBannerPath;
     _urlController = TextEditingController(
       text: widget.currentBannerPath.startsWith('http') ? widget.currentBannerPath : '',
