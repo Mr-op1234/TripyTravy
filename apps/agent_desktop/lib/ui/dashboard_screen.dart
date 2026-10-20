@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../data/itinerary_database.dart';
 import 'trip_editor_dialog.dart';
+import 'trip_detail_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final List<DestinationItem>? initialDestinations;
@@ -399,14 +400,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final item = _destinations[index];
                 return ItineraryCard(
                   item: item,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        backgroundColor: const Color(0xFF0066FF),
-                        content: Text('Selected ${item.title}'),
-                      ),
-                    );
-                  },
+                  onTap: () => _openTripDetail(item),
                   onDelete: () => _showDeleteConfirmationDialog(item),
                   onEdit: () => _showTripEditorDialog(itemToEdit: item),
                 );
@@ -416,6 +410,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         },
       ),
     );
+  }
+
+  void _openTripDetail(DestinationItem item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TripDetailScreen(item: item),
+      ),
+    ).then((_) => _loadItineraries());
   }
 }
 
@@ -741,14 +744,7 @@ class _ItineraryCardState extends State<ItineraryCard> {
                         color: Colors.transparent,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(20),
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                backgroundColor: const Color(0xFF0066FF),
-                                content: Text('Opening itinerary for ${widget.item.title}...'),
-                              ),
-                            );
-                          },
+                          onTap: widget.onTap,
                           child: Container(
                             width: 36,
                             height: 36,

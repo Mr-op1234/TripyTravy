@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -13,6 +14,10 @@ class DestinationItem {
   final String imagePath;
   final String? startDate;
   final String? endDate;
+  final String? tripCode;
+  final String? tagline;
+  final String? description;
+  final bool isLiked;
 
   const DestinationItem({
     required this.id,
@@ -23,7 +28,35 @@ class DestinationItem {
     required this.imagePath,
     this.startDate,
     this.endDate,
+    this.tripCode,
+    this.tagline,
+    this.description,
+    this.isLiked = false,
   });
+
+  String get effectiveTripCode {
+    if (tripCode != null && tripCode!.trim().isNotEmpty) {
+      return tripCode!.trim();
+    }
+    final clean = title.replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
+    final prefix = clean.length >= 4 ? clean.substring(0, clean.length >= 5 ? 5 : 4) : clean.padRight(4, 'X');
+    final numCode = ((id * 1337 + 3141) % 9000 + 1000);
+    return 'TC-$prefix-$numCode';
+  }
+
+  String get effectiveTagline {
+    if (tagline != null && tagline!.trim().isNotEmpty) {
+      return tagline!.trim();
+    }
+    return 'EXPLORE • DISCOVER • EXPERIENCE';
+  }
+
+  String get effectiveDescription {
+    if (description != null && description!.trim().isNotEmpty) {
+      return description!.trim();
+    }
+    return subtitle.isNotEmpty ? subtitle : 'No one knows what is going to happen in the future. Fortunately the creator of this itinerary does! A marvelous adventure awaits.';
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -35,6 +68,10 @@ class DestinationItem {
       'image_path': imagePath,
       'start_date': startDate,
       'end_date': endDate,
+      'trip_code': tripCode,
+      'tagline': tagline,
+      'description': description,
+      'is_liked': isLiked ? 1 : 0,
     };
   }
 
@@ -48,6 +85,10 @@ class DestinationItem {
       imagePath: map['image_path'] as String,
       startDate: map['start_date'] as String?,
       endDate: map['end_date'] as String?,
+      tripCode: map['trip_code'] as String?,
+      tagline: map['tagline'] as String?,
+      description: map['description'] as String?,
+      isLiked: (map['is_liked'] as int? ?? 0) == 1,
     );
   }
 
@@ -60,6 +101,10 @@ class DestinationItem {
     String? imagePath,
     String? startDate,
     String? endDate,
+    String? tripCode,
+    String? tagline,
+    String? description,
+    bool? isLiked,
   }) {
     return DestinationItem(
       id: id ?? this.id,
@@ -70,6 +115,192 @@ class DestinationItem {
       imagePath: imagePath ?? this.imagePath,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
+      tripCode: tripCode ?? this.tripCode,
+      tagline: tagline ?? this.tagline,
+      description: description ?? this.description,
+      isLiked: isLiked ?? this.isLiked,
+    );
+  }
+}
+
+class TripEventItem {
+  final String id;
+  final int itineraryId;
+  final int dayNumber;
+  final String title;
+  final String eventDate;
+  final String? startTime;
+  final String? endTime;
+  final String duration;
+  final String location;
+  final String description;
+  final String coverImage;
+  final List<String> photos;
+  final List<String> notes;
+  final int sortOrder;
+
+  const TripEventItem({
+    required this.id,
+    required this.itineraryId,
+    this.dayNumber = 1,
+    required this.title,
+    required this.eventDate,
+    this.startTime,
+    this.endTime,
+    required this.duration,
+    required this.location,
+    this.description = '',
+    this.coverImage = '',
+    this.photos = const [],
+    this.notes = const [],
+    this.sortOrder = 0,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'itinerary_id': itineraryId,
+      'day_number': dayNumber,
+      'title': title,
+      'event_date': eventDate,
+      'start_time': startTime,
+      'end_time': endTime,
+      'duration': duration,
+      'location': location,
+      'description': description,
+      'cover_image': coverImage,
+      'photos_json': jsonEncode(photos),
+      'notes_json': jsonEncode(notes),
+      'sort_order': sortOrder,
+    };
+  }
+
+  factory TripEventItem.fromMap(Map<String, dynamic> map) {
+    List<String> parsedPhotos = [];
+    if (map['photos_json'] != null) {
+      try {
+        final decoded = jsonDecode(map['photos_json'] as String);
+        if (decoded is List) {
+          parsedPhotos = decoded.map((e) => e.toString()).toList();
+        }
+      } catch (_) {}
+    }
+
+    List<String> parsedNotes = [];
+    if (map['notes_json'] != null) {
+      try {
+        final decoded = jsonDecode(map['notes_json'] as String);
+        if (decoded is List) {
+          parsedNotes = decoded.map((e) => e.toString()).toList();
+        }
+      } catch (_) {}
+    }
+
+    return TripEventItem(
+      id: map['id'] as String,
+      itineraryId: map['itinerary_id'] as int,
+      dayNumber: map['day_number'] as int? ?? 1,
+      title: map['title'] as String,
+      eventDate: map['event_date'] as String,
+      startTime: map['start_time'] as String?,
+      endTime: map['end_time'] as String?,
+      duration: map['duration'] as String? ?? '',
+      location: map['location'] as String? ?? '',
+      description: map['description'] as String? ?? '',
+      coverImage: map['cover_image'] as String? ?? '',
+      photos: parsedPhotos,
+      notes: parsedNotes,
+      sortOrder: map['sort_order'] as int? ?? 0,
+    );
+  }
+
+  TripEventItem copyWith({
+    String? id,
+    int? itineraryId,
+    int? dayNumber,
+    String? title,
+    String? eventDate,
+    String? startTime,
+    String? endTime,
+    String? duration,
+    String? location,
+    String? description,
+    String? coverImage,
+    List<String>? photos,
+    List<String>? notes,
+    int? sortOrder,
+  }) {
+    return TripEventItem(
+      id: id ?? this.id,
+      itineraryId: itineraryId ?? this.itineraryId,
+      dayNumber: dayNumber ?? this.dayNumber,
+      title: title ?? this.title,
+      eventDate: eventDate ?? this.eventDate,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      duration: duration ?? this.duration,
+      location: location ?? this.location,
+      description: description ?? this.description,
+      coverImage: coverImage ?? this.coverImage,
+      photos: photos ?? this.photos,
+      notes: notes ?? this.notes,
+      sortOrder: sortOrder ?? this.sortOrder,
+    );
+  }
+}
+
+class TripDocumentItem {
+  final String id;
+  final int itineraryId;
+  final String? eventId;
+  final String docType; // flight, hotel, insurance, visa, passport, other
+  final String title;
+  final String description;
+  final String fileName;
+  final String fileSize;
+  final String filePath;
+  final String colorScheme;
+
+  const TripDocumentItem({
+    required this.id,
+    required this.itineraryId,
+    this.eventId,
+    required this.docType,
+    required this.title,
+    this.description = '',
+    required this.fileName,
+    required this.fileSize,
+    required this.filePath,
+    this.colorScheme = 'blue',
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'itinerary_id': itineraryId,
+      'event_id': eventId,
+      'doc_type': docType,
+      'title': title,
+      'description': description,
+      'file_name': fileName,
+      'file_size': fileSize,
+      'file_path': filePath,
+      'color_scheme': colorScheme,
+    };
+  }
+
+  factory TripDocumentItem.fromMap(Map<String, dynamic> map) {
+    return TripDocumentItem(
+      id: map['id'] as String,
+      itineraryId: map['itinerary_id'] as int,
+      eventId: map['event_id'] as String?,
+      docType: map['doc_type'] as String,
+      title: map['title'] as String,
+      description: map['description'] as String? ?? '',
+      fileName: map['file_name'] as String,
+      fileSize: map['file_size'] as String,
+      filePath: map['file_path'] as String,
+      colorScheme: map['color_scheme'] as String? ?? 'blue',
     );
   }
 }
@@ -116,7 +347,7 @@ class ItineraryDatabase {
 
     return await openDatabase(
       dbPath,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -133,8 +364,56 @@ class ItineraryDatabase {
             );
           } catch (_) {}
         }
+        if (oldVersion < 4) {
+          try {
+            await db.execute('ALTER TABLE itineraries ADD COLUMN trip_code TEXT');
+            await db.execute('ALTER TABLE itineraries ADD COLUMN tagline TEXT');
+            await db.execute('ALTER TABLE itineraries ADD COLUMN description TEXT');
+            await db.execute('ALTER TABLE itineraries ADD COLUMN is_liked INTEGER DEFAULT 0');
+          } catch (_) {}
+          await _createEventAndDocTables(db);
+        }
       },
     );
+  }
+
+  static Future<void> _createEventAndDocTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS trip_events (
+        id TEXT PRIMARY KEY,
+        itinerary_id INTEGER NOT NULL,
+        day_number INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        event_date TEXT NOT NULL,
+        start_time TEXT,
+        end_time TEXT,
+        duration TEXT NOT NULL,
+        location TEXT NOT NULL,
+        description TEXT,
+        cover_image TEXT,
+        photos_json TEXT,
+        notes_json TEXT,
+        sort_order INTEGER NOT NULL,
+        FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS trip_documents (
+        id TEXT PRIMARY KEY,
+        itinerary_id INTEGER NOT NULL,
+        event_id TEXT,
+        doc_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        file_name TEXT NOT NULL,
+        file_size TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        color_scheme TEXT NOT NULL,
+        FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE,
+        FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE SET NULL
+      )
+    ''');
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -147,15 +426,30 @@ class ItineraryDatabase {
         date_range TEXT NOT NULL,
         image_path TEXT NOT NULL,
         start_date TEXT,
-        end_date TEXT
+        end_date TEXT,
+        trip_code TEXT,
+        tagline TEXT,
+        description TEXT,
+        is_liked INTEGER DEFAULT 0
       )
     ''');
+
+    await _createEventAndDocTables(db);
   }
 
   Future<List<DestinationItem>> getAllItineraries() async {
     final db = await database;
     final maps = await db.query('itineraries', orderBy: 'id ASC');
     return maps.map((m) => DestinationItem.fromMap(m)).toList();
+  }
+
+  Future<DestinationItem?> getItineraryById(int id) async {
+    final db = await database;
+    final maps = await db.query('itineraries', where: 'id = ?', whereArgs: [id]);
+    if (maps.isNotEmpty) {
+      return DestinationItem.fromMap(maps.first);
+    }
+    return null;
   }
 
   Future<DestinationItem> insertItinerary({
@@ -166,6 +460,9 @@ class ItineraryDatabase {
     required String imagePath,
     String? startDate,
     String? endDate,
+    String? tripCode,
+    String? tagline,
+    String? description,
   }) async {
     final db = await database;
     final id = await db.insert('itineraries', {
@@ -176,6 +473,10 @@ class ItineraryDatabase {
       'image_path': imagePath,
       'start_date': startDate,
       'end_date': endDate,
+      'trip_code': tripCode,
+      'tagline': tagline,
+      'description': description,
+      'is_liked': 0,
     });
     return DestinationItem(
       id: id,
@@ -186,6 +487,10 @@ class ItineraryDatabase {
       imagePath: imagePath,
       startDate: startDate,
       endDate: endDate,
+      tripCode: tripCode,
+      tagline: tagline,
+      description: description,
+      isLiked: false,
     );
   }
 
@@ -204,6 +509,85 @@ class ItineraryDatabase {
     );
   }
 
+  Future<int> toggleLike(int id, bool isLiked) async {
+    final db = await database;
+    return await db.update(
+      'itineraries',
+      {'is_liked': isLiked ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // --- Events CRUD ---
+  Future<List<TripEventItem>> getEventsForItinerary(int itineraryId) async {
+    final db = await database;
+    final maps = await db.query(
+      'trip_events',
+      where: 'itinerary_id = ?',
+      whereArgs: [itineraryId],
+      orderBy: 'sort_order ASC, day_number ASC, start_time ASC, id ASC',
+    );
+    return maps.map((m) => TripEventItem.fromMap(m)).toList();
+  }
+
+  Future<int> insertEvent(TripEventItem event) async {
+    final db = await database;
+    return await db.insert('trip_events', event.toMap());
+  }
+
+  Future<int> updateEvent(TripEventItem event) async {
+    final db = await database;
+    return await db.update(
+      'trip_events',
+      event.toMap(),
+      where: 'id = ?',
+      whereArgs: [event.id],
+    );
+  }
+
+  Future<int> deleteEvent(String eventId) async {
+    final db = await database;
+    return await db.delete('trip_events', where: 'id = ?', whereArgs: [eventId]);
+  }
+
+  Future<void> reorderEvents(List<TripEventItem> events) async {
+    final db = await database;
+    final batch = db.batch();
+    for (int i = 0; i < events.length; i++) {
+      batch.update(
+        'trip_events',
+        {'sort_order': i},
+        where: 'id = ?',
+        whereArgs: [events[i].id],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  // --- Documents CRUD ---
+  Future<List<TripDocumentItem>> getDocumentsForItinerary(int itineraryId) async {
+    final db = await database;
+    final maps = await db.query(
+      'trip_documents',
+      where: 'itinerary_id = ?',
+      whereArgs: [itineraryId],
+      orderBy: 'id ASC',
+    );
+    return maps.map((m) => TripDocumentItem.fromMap(m)).toList();
+  }
+
+  Future<int> insertDocument(TripDocumentItem doc) async {
+    final db = await database;
+    return await db.insert('trip_documents', doc.toMap());
+  }
+
+  Future<int> deleteDocument(String docId) async {
+    final db = await database;
+    return await db.delete('trip_documents', where: 'id = ?', whereArgs: [docId]);
+  }
+
+  // --- Storage Helpers ---
   static Future<String> saveBannerToAppStorage(String sourcePath) async {
     try {
       if (sourcePath.startsWith('assets/')) return sourcePath;
@@ -218,6 +602,47 @@ class ItineraryDatabase {
       final ext = p.extension(sourcePath);
       final fileName = 'banner_${DateTime.now().millisecondsSinceEpoch}$ext';
       final destPath = p.join(bannerDir.path, fileName);
+      await sourceFile.copy(destPath);
+      return destPath;
+    } catch (_) {
+      return sourcePath;
+    }
+  }
+
+  static Future<String> saveEventPhotoToAppStorage(String sourcePath) async {
+    try {
+      if (sourcePath.startsWith('assets/')) return sourcePath;
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) return sourcePath;
+
+      final appSupportDir = await getApplicationSupportDirectory();
+      final photosDir = Directory(p.join(appSupportDir.path, 'TripyTravy', 'event_photos'));
+      if (!await photosDir.exists()) {
+        await photosDir.create(recursive: true);
+      }
+      final ext = p.extension(sourcePath);
+      final fileName = 'photo_${DateTime.now().millisecondsSinceEpoch}_${(sourcePath.hashCode % 1000).abs()}$ext';
+      final destPath = p.join(photosDir.path, fileName);
+      await sourceFile.copy(destPath);
+      return destPath;
+    } catch (_) {
+      return sourcePath;
+    }
+  }
+
+  static Future<String> saveDocumentToAppStorage(String sourcePath) async {
+    try {
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) return sourcePath;
+
+      final appSupportDir = await getApplicationSupportDirectory();
+      final docsDir = Directory(p.join(appSupportDir.path, 'TripyTravy', 'documents'));
+      if (!await docsDir.exists()) {
+        await docsDir.create(recursive: true);
+      }
+      final ext = p.extension(sourcePath);
+      final fileName = 'doc_${DateTime.now().millisecondsSinceEpoch}$ext';
+      final destPath = p.join(docsDir.path, fileName);
       await sourceFile.copy(destPath);
       return destPath;
     } catch (_) {

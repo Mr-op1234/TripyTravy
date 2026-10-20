@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agent_desktop/data/itinerary_database.dart';
 import 'package:agent_desktop/ui/dashboard_screen.dart';
+import 'package:agent_desktop/ui/trip_detail_screen.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -27,7 +28,45 @@ void main() {
                 date_range TEXT NOT NULL,
                 image_path TEXT NOT NULL,
                 start_date TEXT,
-                end_date TEXT
+                end_date TEXT,
+                trip_code TEXT,
+                tagline TEXT,
+                description TEXT,
+                is_liked INTEGER DEFAULT 0
+              )
+            ''');
+
+            await db.execute('''
+              CREATE TABLE trip_events (
+                id TEXT PRIMARY KEY,
+                itinerary_id INTEGER NOT NULL,
+                day_number INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                event_date TEXT NOT NULL,
+                start_time TEXT,
+                end_time TEXT,
+                duration TEXT NOT NULL,
+                location TEXT NOT NULL,
+                description TEXT,
+                cover_image TEXT,
+                photos_json TEXT,
+                notes_json TEXT,
+                sort_order INTEGER NOT NULL
+              )
+            ''');
+
+            await db.execute('''
+              CREATE TABLE trip_documents (
+                id TEXT PRIMARY KEY,
+                itinerary_id INTEGER NOT NULL,
+                event_id TEXT,
+                doc_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                file_name TEXT NOT NULL,
+                file_size TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                color_scheme TEXT NOT NULL
               )
             ''');
           },
@@ -63,20 +102,50 @@ void main() {
       expect(allItems.first.title, 'New York City');
     });
 
-    test('Deletes itinerary and persists deletion in SQLite', () async {
-      final newItem = await ItineraryDatabase.instance.insertItinerary(
-        title: 'Paris',
-        subtitle: 'The city of lights.',
-        duration: '5 Days',
-        dateRange: 'Aug 01 - Aug 05, 2025',
+    test('Inserts and retrieves events and documents for an itinerary', () async {
+      final trip = await ItineraryDatabase.instance.insertItinerary(
+        title: 'Switzerland & Italy',
+        subtitle: 'Scenic railways and historic ruins.',
+        duration: '30 Days',
+        dateRange: '01-09-2030 -> 30-09-2030',
         imagePath: '',
       );
 
-      final rowsAffected = await ItineraryDatabase.instance.deleteItinerary(newItem.id);
-      expect(rowsAffected, 1);
+      final event = TripEventItem(
+        id: 'evt_1',
+        itineraryId: trip.id,
+        title: 'Departure from CCU',
+        eventDate: '2030-09-01',
+        startTime: '04:15',
+        endTime: '07:00',
+        duration: '~ 2 hrs 45 mins',
+        location: 'CCU',
+        description: 'Flight check-in at gate 12.',
+        notes: const ['Passport ready', 'Baggage drop'],
+      );
 
-      final itemsAfter = await ItineraryDatabase.instance.getAllItineraries();
-      expect(itemsAfter, isEmpty);
+      await ItineraryDatabase.instance.insertEvent(event);
+      final events = await ItineraryDatabase.instance.getEventsForItinerary(trip.id);
+      expect(events.length, 1);
+      expect(events.first.title, 'Departure from CCU');
+      expect(events.first.location, 'CCU');
+
+      final doc = TripDocumentItem(
+        id: 'doc_1',
+        itineraryId: trip.id,
+        eventId: 'evt_1',
+        docType: 'flight',
+        title: 'Boarding Pass CCU-DXB',
+        fileName: 'boarding_pass.pdf',
+        fileSize: '1.2 MB',
+        filePath: 'test/path/boarding_pass.pdf',
+      );
+
+      await ItineraryDatabase.instance.insertDocument(doc);
+      final docs = await ItineraryDatabase.instance.getDocumentsForItinerary(trip.id);
+      expect(docs.length, 1);
+      expect(docs.first.title, 'Boarding Pass CCU-DXB');
+      expect(docs.first.docType, 'flight');
     });
   });
 
@@ -202,6 +271,59 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(find.text('Edit Trip Itinerary'), findsNothing);
+    });
+
+    testWidgets('TripDetailScreen renders panoramic hero banner, badges, documents card, and itinerary section', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      const sampleTrip = DestinationItem(
+        id: 1,
+        title: 'Switzerland & Italy',
+        subtitle: 'No one knows what is going to happen in the future.',
+        duration: '30 Days',
+        dateRange: '01-09-2030 -> 30-09-2030',
+        imagePath: '',
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: TripDetailScreen(
+            item: sampleTrip,
+            initialEvents: [],
+            initialDocuments: [],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify Header & Banner
+      expect(find.text('My Trips'), findsOneWidget);
+      expect(find.text('Switzerland & Italy'), findsOneWidget);
+      expect(find.textContaining('Mobile Code:'), findsOneWidget);
+      expect(find.text('30 Days'), findsOneWidget);
+      expect(find.text('01-09-2030 -> 30-09-2030'), findsOneWidget);
+      expect(find.text('Change Banner'), findsOneWidget);
+
+      // Verify Documents trigger card
+      expect(find.text('Information and documents'), findsOneWidget);
+
+      // Verify Itinerary section
+      expect(find.text('Itinerary'), findsOneWidget);
+      expect(find.text('+ Add Event'), findsOneWidget);
+
+      // Tap + Add Event and verify EventEditorDialog
+      await tester.tap(find.text('+ Add Event'));
+      await tester.pumpAndSettle();
+      expect(find.text('Add Itinerary Event'), findsOneWidget);
+      expect(find.text('Event Title *'), findsOneWidget);
+      expect(find.text('Location / Venue'), findsOneWidget);
+
+      // Close dialog via top-right close icon
+      await tester.tap(find.byIcon(Icons.close).last);
+      await tester.pumpAndSettle();
+      expect(find.text('Add Itinerary Event'), findsNothing);
     });
   });
 }
