@@ -231,13 +231,18 @@ class TripDocumentItem {
   final String id;
   final int itineraryId;
   final String? eventId;
-  final String docType; // flight, hotel, insurance, visa, passport, other
+  final String docType;
   final String title;
   final String description;
   final String fileName;
   final String fileSize;
   final String filePath;
   final String colorScheme;
+  final String? locationName;
+  final double? latitude;
+  final double? longitude;
+  final String? mapUrl;
+  final String? attachmentsJson;
 
   const TripDocumentItem({
     required this.id,
@@ -250,7 +255,37 @@ class TripDocumentItem {
     required this.fileSize,
     required this.filePath,
     this.colorScheme = 'blue',
+    this.locationName,
+    this.latitude,
+    this.longitude,
+    this.mapUrl,
+    this.attachmentsJson,
   });
+
+  bool get hasLocation => locationName != null && locationName!.trim().isNotEmpty;
+  bool get hasCoordinates => latitude != null && longitude != null;
+
+  String get coordinatesDisplay {
+    if (!hasCoordinates) return '';
+    final latStr = '${latitude!.abs().toStringAsFixed(4)}° ${latitude! >= 0 ? "N" : "S"}';
+    final lngStr = '${longitude!.abs().toStringAsFixed(4)}° ${longitude! >= 0 ? "E" : "W"}';
+    return '$latStr, $lngStr';
+  }
+
+  List<Map<String, String>> get attachments {
+    if (attachmentsJson != null && attachmentsJson!.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(attachmentsJson!) as List<dynamic>;
+        return decoded.map((e) => Map<String, String>.from(e as Map)).toList();
+      } catch (_) {}
+    }
+    if (filePath.isNotEmpty && filePath != 'None') {
+      return [
+        {'name': fileName, 'size': fileSize, 'path': filePath}
+      ];
+    }
+    return [];
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -264,6 +299,11 @@ class TripDocumentItem {
       'file_size': fileSize,
       'file_path': filePath,
       'color_scheme': colorScheme,
+      'location_name': locationName,
+      'latitude': latitude,
+      'longitude': longitude,
+      'map_url': mapUrl,
+      'attachments_json': attachmentsJson,
     };
   }
 
@@ -272,13 +312,18 @@ class TripDocumentItem {
       id: map['id'] as String,
       itineraryId: map['itinerary_id'] as int,
       eventId: map['event_id'] as String?,
-      docType: map['doc_type'] as String,
+      docType: map['doc_type'] as String? ?? 'info',
       title: map['title'] as String,
       description: map['description'] as String? ?? '',
-      fileName: map['file_name'] as String,
-      fileSize: map['file_size'] as String,
-      filePath: map['file_path'] as String,
+      fileName: map['file_name'] as String? ?? '',
+      fileSize: map['file_size'] as String? ?? '',
+      filePath: map['file_path'] as String? ?? '',
       colorScheme: map['color_scheme'] as String? ?? 'blue',
+      locationName: map['location_name'] as String?,
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
+      mapUrl: map['map_url'] as String?,
+      attachmentsJson: map['attachments_json'] as String?,
     );
   }
 }
@@ -388,10 +433,27 @@ class ItineraryDatabase {
         file_size TEXT NOT NULL,
         file_path TEXT NOT NULL,
         color_scheme TEXT NOT NULL,
+        location_name TEXT,
+        latitude REAL,
+        longitude REAL,
+        map_url TEXT,
+        attachments_json TEXT,
         FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE,
         FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE SET NULL
       )
     ''');
+
+    for (final col in [
+      'location_name TEXT',
+      'latitude REAL',
+      'longitude REAL',
+      'map_url TEXT',
+      'attachments_json TEXT',
+    ]) {
+      try {
+        await db.execute('ALTER TABLE trip_documents ADD COLUMN $col');
+      } catch (_) {}
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {

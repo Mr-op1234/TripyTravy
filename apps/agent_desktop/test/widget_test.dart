@@ -5,6 +5,7 @@ import 'package:agent_desktop/data/itinerary_database.dart';
 import 'package:agent_desktop/ui/dashboard_screen.dart';
 import 'package:agent_desktop/ui/trip_detail_screen.dart';
 import 'package:agent_desktop/ui/widgets/smooth_scroll.dart';
+import 'package:agent_desktop/data/google_maps_helper.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -66,7 +67,12 @@ void main() {
                 file_name TEXT NOT NULL,
                 file_size TEXT NOT NULL,
                 file_path TEXT NOT NULL,
-                color_scheme TEXT NOT NULL
+                color_scheme TEXT NOT NULL,
+                location_name TEXT,
+                latitude REAL,
+                longitude REAL,
+                map_url TEXT,
+                attachments_json TEXT
               )
             ''');
           },
@@ -331,6 +337,45 @@ void main() {
       await tester.tap(find.byIcon(Icons.close).last);
       await tester.pumpAndSettle();
       expect(find.text('Add Itinerary Event'), findsNothing);
+
+      // Tap Information and documents trigger card
+      await tester.tap(find.text('Information and documents'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+      expect(find.text('Trip Documents & Information'), findsOneWidget);
+      expect(find.text('+ Add Information'), findsOneWidget);
+
+      // Tap + Add Information (Image 1 requirement)
+      await tester.tap(find.text('+ Add Information'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+
+      // Verify AddInformationDialog fields (Image 2 requirements)
+      expect(find.text('Add Information'), findsOneWidget);
+      expect(find.text('Information Title *'), findsOneWidget);
+      expect(find.text('Information Description'), findsOneWidget);
+      expect(find.text('Attach Documents'), findsOneWidget);
+      expect(find.text('Location Card (Google Maps)'), findsOneWidget);
+
+      // Close AddInformationDialog
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      // Close DocumentsManagerDialog
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+    });
+
+    test('GoogleMapsHelper parses place URLs and extracts coordinates and place name', () async {
+      const url = 'https://www.google.com/maps/place/Matterhorn,+3920+Zermatt,+Switzerland/@45.9765664,7.6584514,15z';
+      final result = await GoogleMapsHelper.parse(url);
+      expect(result, isNotNull);
+      expect(result!.locationName, 'Matterhorn, 3920 Zermatt, Switzerland');
+      expect(result.latitude, closeTo(45.9765, 0.001));
+      expect(result.longitude, closeTo(7.6584, 0.001));
+      expect(result.coordinatesDisplay, contains('45.9766° N'));
     });
 
     testWidgets('SmoothScroll animates mouse wheel pointer scrolls smoothly', (tester) async {

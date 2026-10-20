@@ -1,18 +1,23 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../data/itinerary_database.dart';
+import '../../data/google_maps_helper.dart';
 
 class DocumentsManagerDialog extends StatefulWidget {
   final int itineraryId;
   final String tripTitle;
   final List<TripEventItem> availableEvents;
+  final List<TripDocumentItem>? initialDocuments;
 
   const DocumentsManagerDialog({
     super.key,
     required this.itineraryId,
     required this.tripTitle,
     this.availableEvents = const [],
+    this.initialDocuments,
   });
 
   @override
@@ -26,7 +31,12 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
   @override
   void initState() {
     super.initState();
-    _loadDocuments();
+    if (widget.initialDocuments != null) {
+      _documents = List.from(widget.initialDocuments!);
+      _isLoading = false;
+    } else {
+      _loadDocuments();
+    }
   }
 
   Future<void> _loadDocuments() async {
@@ -39,59 +49,42 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
     }
   }
 
-  Color _getTypeColor(String type) {
-    switch (type.toLowerCase()) {
-      case 'flight':
-        return const Color(0xFF0284C7);
-      case 'hotel':
-        return const Color(0xFF16A34A);
-      case 'insurance':
-        return const Color(0xFFDC2626);
-      case 'visa':
-        return const Color(0xFF9333EA);
-      default:
-        return const Color(0xFF2563EB);
-    }
+  Color _getTypeColor(TripDocumentItem doc) {
+    if (doc.hasLocation) return const Color(0xFF0284C7);
+    if (doc.attachments.isNotEmpty) return const Color(0xFF2563EB);
+    return const Color(0xFF059669);
   }
 
-  Color _getTypeBgColor(String type) {
-    switch (type.toLowerCase()) {
-      case 'flight':
-        return const Color(0xFFE0F2FE);
-      case 'hotel':
-        return const Color(0xFFDCFCE7);
-      case 'insurance':
-        return const Color(0xFFFEE2E2);
-      case 'visa':
-        return const Color(0xFFF3E8FF);
-      default:
-        return const Color(0xFFE8F0FE);
-    }
+  Color _getTypeBgColor(TripDocumentItem doc) {
+    if (doc.hasLocation) return const Color(0xFFE0F2FE);
+    if (doc.attachments.isNotEmpty) return const Color(0xFFEFF6FF);
+    return const Color(0xFFECFDF5);
   }
 
-  IconData _getTypeIcon(String type) {
-    switch (type.toLowerCase()) {
-      case 'flight':
-        return Icons.flight_takeoff_rounded;
-      case 'hotel':
-        return Icons.hotel_rounded;
-      case 'insurance':
-        return Icons.health_and_safety_rounded;
-      case 'visa':
-        return Icons.badge_rounded;
-      case 'passport':
-        return Icons.contact_page_rounded;
-      default:
-        return Icons.description_rounded;
-    }
+  IconData _getTypeIcon(TripDocumentItem doc) {
+    if (doc.hasLocation) return Icons.location_on_rounded;
+    if (doc.attachments.isNotEmpty) return Icons.folder_shared_rounded;
+    return Icons.info_outline_rounded;
   }
 
   void _openFile(String path) {
+    if (path.isEmpty) return;
     try {
-      if (Platform.isWindows) {
-        Process.run('explorer.exe', [path]);
-      } else {
-        Process.run('open', [path]);
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        if (Platform.isWindows) {
+          Process.run('explorer.exe', [path]);
+        } else {
+          Process.run('open', [path]);
+        }
+        return;
+      }
+      final f = File(path);
+      if (f.existsSync()) {
+        if (Platform.isWindows) {
+          Process.run('explorer.exe', [path]);
+        } else {
+          Process.run('open', [path]);
+        }
       }
     } catch (_) {}
   }
@@ -101,11 +94,11 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
     _loadDocuments();
   }
 
-  void _showAddDocumentDialog() {
+  void _showAddInformationDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AddDocumentDialog(
+      builder: (_) => AddInformationDialog(
         itineraryId: widget.itineraryId,
         availableEvents: widget.availableEvents,
         onDocumentSaved: () {
@@ -182,7 +175,7 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
             ),
             const SizedBox(height: 22),
 
-            // Document list
+            // Document / Information List
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -202,12 +195,12 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
                               ),
                               const SizedBox(height: 18),
                               const Text(
-                                'No documents attached yet',
+                                'No documents or information attached yet',
                                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
                               ),
                               const SizedBox(height: 6),
                               const Text(
-                                'Attach flight tickets, hotel vouchers, visas, and insurance.',
+                                'Attach flight tickets, hotel vouchers, location maps, or trip guidelines.',
                                 style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
                               ),
                             ],
@@ -220,97 +213,175 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
                               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: constraints.maxWidth > 1150 ? 3 : (isMultiColumn ? 2 : 1),
                                 crossAxisSpacing: 16,
-                                mainAxisSpacing: 12,
-                                mainAxisExtent: 84,
+                                mainAxisSpacing: 14,
+                                mainAxisExtent: 145,
                               ),
                               itemCount: _documents.length,
                               itemBuilder: (context, index) {
                                 final doc = _documents[index];
-                                final color = _getTypeColor(doc.docType);
-                                final bgColor = _getTypeBgColor(doc.docType);
-                                final icon = _getTypeIcon(doc.docType);
+                                final color = _getTypeColor(doc);
+                                final bgColor = _getTypeBgColor(doc);
+                                final icon = _getTypeIcon(doc);
 
                                 return Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  padding: const EdgeInsets.all(14),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius: BorderRadius.circular(16),
                                     border: Border.all(color: const Color(0xFFE2E8F0)),
                                   ),
-                                  child: Row(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Container(
-                                        width: 44,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: bgColor,
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Icon(icon, color: color, size: 22),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Row(
+                                      // Top row: Icon, Title, Badge, Actions
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 36,
+                                            height: 36,
+                                            decoration: BoxDecoration(
+                                              color: bgColor,
+                                              borderRadius: BorderRadius.circular(9),
+                                            ),
+                                            child: Icon(icon, color: color, size: 19),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    doc.title,
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Color(0xFF0F172A),
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        doc.title,
+                                                        style: const TextStyle(
+                                                          fontSize: 14.5,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Color(0xFF0F172A),
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
                                                     ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
+                                                    const SizedBox(width: 6),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                      decoration: BoxDecoration(
+                                                        color: bgColor,
+                                                        borderRadius: BorderRadius.circular(5),
+                                                      ),
+                                                      child: Text(
+                                                        doc.hasLocation
+                                                            ? 'LOCATION'
+                                                            : (doc.attachments.isNotEmpty ? 'DOCS' : 'INFO'),
+                                                        style: TextStyle(
+                                                          color: color,
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 9,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                                const SizedBox(width: 8),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: bgColor,
-                                                    borderRadius: BorderRadius.circular(6),
-                                                  ),
-                                                  child: Text(
-                                                    doc.docType.toUpperCase(),
-                                                    style: TextStyle(
-                                                      color: color,
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 9.5,
+                                                if (doc.hasLocation)
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(top: 2),
+                                                    child: Row(
+                                                      children: [
+                                                        const Icon(Icons.place_rounded, size: 12, color: Color(0xFF0284C7)),
+                                                        const SizedBox(width: 3),
+                                                        Expanded(
+                                                          child: Text(
+                                                            '${doc.locationName!} ${doc.coordinatesDisplay.isNotEmpty ? "(${doc.coordinatesDisplay})" : ""}',
+                                                            style: const TextStyle(
+                                                              fontSize: 11.5,
+                                                              fontWeight: FontWeight.w600,
+                                                              color: Color(0xFF0284C7),
+                                                            ),
+                                                            maxLines: 1,
+                                                            overflow: TextOverflow.ellipsis,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
-                                                ),
                                               ],
                                             ),
-                                            const SizedBox(height: 3),
-                                            Text(
-                                              doc.description.isNotEmpty
-                                                  ? '${doc.description} • ${doc.fileName} (${doc.fileSize})'
-                                                  : '${doc.fileName} • ${doc.fileSize}',
-                                              style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                          ),
+                                          if (doc.mapUrl != null && doc.mapUrl!.isNotEmpty)
+                                            IconButton(
+                                              tooltip: 'Open in Google Maps',
+                                              onPressed: () => _openFile(doc.mapUrl!),
+                                              icon: const Icon(Icons.map_rounded, size: 17, color: Color(0xFF0284C7)),
+                                              splashRadius: 16,
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                             ),
-                                          ],
+                                          IconButton(
+                                            tooltip: 'Delete Information',
+                                            onPressed: () => _deleteDoc(doc),
+                                            icon: const Icon(Icons.delete_outline_rounded, size: 17, color: Color(0xFFDC2626)),
+                                            splashRadius: 16,
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                          ),
+                                        ],
+                                      ),
+
+                                      // Description Snippet
+                                      if (doc.description.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 2),
+                                          child: Text(
+                                            doc.description,
+                                            style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      IconButton(
-                                        tooltip: 'Open / View Document',
-                                        onPressed: () => _openFile(doc.filePath),
-                                        icon: const Icon(Icons.open_in_new_rounded, size: 18, color: Color(0xFF2563EB)),
-                                        splashRadius: 18,
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Delete Document',
-                                        onPressed: () => _deleteDoc(doc),
-                                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
-                                        splashRadius: 18,
-                                      ),
+
+                                      // Attached Documents Pills
+                                      if (doc.attachments.isNotEmpty)
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 4,
+                                          children: doc.attachments.map((att) {
+                                            return InkWell(
+                                              onTap: () => _openFile(att['path'] ?? ''),
+                                              borderRadius: BorderRadius.circular(6),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(Icons.attach_file_rounded, size: 12, color: Color(0xFF2563EB)),
+                                                    const SizedBox(width: 4),
+                                                    ConstrainedBox(
+                                                      constraints: const BoxConstraints(maxWidth: 160),
+                                                      child: Text(
+                                                        '${att['name']} (${att['size']})',
+                                                        style: const TextStyle(fontSize: 11, color: Color(0xFF334155)),
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        )
+                                      else if (doc.fileName.isNotEmpty && doc.filePath.isNotEmpty)
+                                        Text(
+                                          '${doc.fileName} • ${doc.fileSize}',
+                                          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                                        ),
                                     ],
                                   ),
                                 );
@@ -333,9 +404,9 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
                   child: const Text('Close', style: TextStyle(color: Color(0xFF64748B), fontSize: 14)),
                 ),
                 ElevatedButton.icon(
-                  onPressed: _showAddDocumentDialog,
+                  onPressed: _showAddInformationDialog,
                   icon: const Icon(Icons.add_rounded, size: 19),
-                  label: const Text('+ Add More Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                  label: const Text('+ Add Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
@@ -353,12 +424,12 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
   }
 }
 
-class AddDocumentDialog extends StatefulWidget {
+class AddInformationDialog extends StatefulWidget {
   final int itineraryId;
   final List<TripEventItem> availableEvents;
   final VoidCallback onDocumentSaved;
 
-  const AddDocumentDialog({
+  const AddInformationDialog({
     super.key,
     required this.itineraryId,
     this.availableEvents = const [],
@@ -366,86 +437,223 @@ class AddDocumentDialog extends StatefulWidget {
   });
 
   @override
-  State<AddDocumentDialog> createState() => _AddDocumentDialogState();
+  State<AddInformationDialog> createState() => _AddInformationDialogState();
 }
 
-class _AddDocumentDialogState extends State<AddDocumentDialog> {
+class _AddInformationDialogState extends State<AddInformationDialog> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  String _docType = 'flight';
-  String? _selectedEventId;
-  String? _pickedFilePath;
-  String? _pickedFileName;
-  String? _pickedFileSize;
-  String? _errorMessage;
+  final _mapsUrlController = TextEditingController();
 
-  static const _docTypes = [
-    {'value': 'flight', 'label': 'Flight Ticket / Pass'},
-    {'value': 'hotel', 'label': 'Hotel / Lodging Voucher'},
-    {'value': 'visa', 'label': 'Visa / Travel Permit'},
-    {'value': 'insurance', 'label': 'Travel Insurance'},
-    {'value': 'passport', 'label': 'Passport Copy / ID'},
-    {'value': 'other', 'label': 'Other Document'},
-  ];
+  final List<PlatformFile> _attachedFiles = [];
+  GoogleMapsLocation? _fetchedLocation;
+  bool _isFetchingLocation = false;
+  String? _locationStatusMessage;
+  String? _errorMessage;
+  Timer? _debounceTimer;
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _mapsUrlController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _pickFile() async {
+  // --- Description Formatting Actions ---
+  void _formatSelection(String prefix, [String suffix = '']) {
+    final text = _descriptionController.text;
+    final selection = _descriptionController.selection;
+    if (!selection.isValid) {
+      _descriptionController.text = '$text$prefix$suffix';
+      return;
+    }
+    final selectedText = selection.textInside(text);
+    final newText = text.replaceRange(
+      selection.start,
+      selection.end,
+      '$prefix$selectedText$suffix',
+    );
+    _descriptionController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(
+        offset: selection.start + prefix.length + selectedText.length + suffix.length,
+      ),
+    );
+  }
+
+  void _formatLine(String prefix) {
+    final text = _descriptionController.text;
+    final selection = _descriptionController.selection;
+    if (!selection.isValid) {
+      _descriptionController.text = '$prefix$text';
+      return;
+    }
+    final start = selection.start;
+    final lineStart = text.lastIndexOf('\n', start - 1) + 1;
+    final newText = text.replaceRange(lineStart, lineStart, prefix);
+    _descriptionController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: selection.end + prefix.length),
+    );
+  }
+
+  int _getFileSizeBytes(PlatformFile f) {
+    final syncLen = f.lengthSync();
+    if (syncLen != null) return syncLen;
+    if (f.path != null && File(f.path!).existsSync()) {
+      try {
+        return File(f.path!).lengthSync();
+      } catch (_) {}
+    }
+    return 0;
+  }
+
+  // --- Attach Documents Section ---
+  Future<void> _pickFiles() async {
     try {
       final files = await FilePicker.pickFiles(
-        dialogTitle: 'Select Document',
+        dialogTitle: 'Select Documents to Attach',
       );
-      if (files.isNotEmpty && files.first.path != null) {
-        final f = files.first;
-        final fileOnDisk = File(f.path!);
-        final sizeBytes = await fileOnDisk.length();
-        final sizeKb = sizeBytes / 1024;
-        final sizeStr = sizeKb > 1024
-            ? '${(sizeKb / 1024).toStringAsFixed(1)} MB'
-            : '${sizeKb.toStringAsFixed(1)} KB';
-
+      if (files.isNotEmpty) {
         setState(() {
-          _pickedFilePath = f.path;
-          _pickedFileName = f.name;
-          _pickedFileSize = sizeStr;
-          if (_titleController.text.trim().isEmpty) {
-            _titleController.text = f.name.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '');
+          for (final f in files) {
+            if (!_attachedFiles.any((existing) => existing.path == f.path)) {
+              _attachedFiles.add(f);
+            }
           }
           _errorMessage = null;
         });
       }
     } catch (e) {
-      setState(() => _errorMessage = 'Could not select file: $e');
+      setState(() => _errorMessage = 'Could not select files: $e');
     }
   }
 
+  void _removeFile(int index) {
+    setState(() {
+      _attachedFiles.removeAt(index);
+    });
+  }
+
+  IconData _getFileIcon(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.pdf')) return Icons.picture_as_pdf_rounded;
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) {
+      return Icons.image_rounded;
+    }
+    if (lower.endsWith('.doc') || lower.endsWith('.docx') || lower.endsWith('.txt')) {
+      return Icons.description_rounded;
+    }
+    if (lower.endsWith('.xls') || lower.endsWith('.xlsx')) return Icons.table_chart_rounded;
+    return Icons.insert_drive_file_rounded;
+  }
+
+  // --- Location Card Actions ---
+  void _onMapsUrlChanged(String val) {
+    _debounceTimer?.cancel();
+    if (val.trim().isEmpty) {
+      setState(() {
+        _fetchedLocation = null;
+        _locationStatusMessage = null;
+      });
+      return;
+    }
+    _debounceTimer = Timer(const Duration(milliseconds: 450), () {
+      _fetchLocationData(val);
+    });
+  }
+
+  Future<void> _fetchLocationData(String rawUrl) async {
+    final url = rawUrl.trim();
+    if (url.isEmpty) return;
+
+    setState(() {
+      _isFetchingLocation = true;
+      _locationStatusMessage = 'Fetching location details and coordinates...';
+    });
+
+    try {
+      final location = await GoogleMapsHelper.parse(url);
+      if (mounted) {
+        setState(() {
+          _isFetchingLocation = false;
+          if (location != null) {
+            _fetchedLocation = location;
+            _locationStatusMessage = null;
+            if (_titleController.text.trim().isEmpty) {
+              _titleController.text = location.locationName;
+            }
+          } else {
+            _locationStatusMessage = 'Could not extract location data from link. Please check the URL.';
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isFetchingLocation = false;
+          _locationStatusMessage = 'Error fetching location: $e';
+        });
+      }
+    }
+  }
+
+  void _openLocationInBrowser(String url) {
+    if (url.isEmpty) return;
+    try {
+      if (Platform.isWindows) {
+        Process.run('explorer.exe', [url]);
+      } else {
+        Process.run('open', [url]);
+      }
+    } catch (_) {}
+  }
+
+  // --- Save ---
   Future<void> _save() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      setState(() => _errorMessage = 'Title is required');
-      return;
-    }
-    if (_pickedFilePath == null) {
-      setState(() => _errorMessage = 'Please select a document file');
+      setState(() => _errorMessage = 'Information Title is required');
       return;
     }
 
-    final savedPath = await ItineraryDatabase.saveDocumentToAppStorage(_pickedFilePath!);
+    final List<Map<String, String>> savedAttachments = [];
+    for (final f in _attachedFiles) {
+      if (f.path != null) {
+        final savedPath = await ItineraryDatabase.saveDocumentToAppStorage(f.path!);
+        final sizeBytes = _getFileSizeBytes(f);
+        final sizeKb = sizeBytes / 1024;
+        final sizeStr = sizeKb > 1024
+            ? '${(sizeKb / 1024).toStringAsFixed(1)} MB'
+            : '${sizeKb.toStringAsFixed(1)} KB';
+        savedAttachments.add({
+          'name': f.name,
+          'size': sizeStr,
+          'path': savedPath,
+        });
+      }
+    }
+
+    final primary = savedAttachments.isNotEmpty ? savedAttachments.first : null;
+
     final docItem = TripDocumentItem(
-      id: 'doc_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'info_${DateTime.now().millisecondsSinceEpoch}',
       itineraryId: widget.itineraryId,
-      eventId: _selectedEventId,
-      docType: _docType,
+      eventId: widget.availableEvents.isNotEmpty ? widget.availableEvents.first.id : null,
+      docType: _fetchedLocation != null ? 'location' : 'info',
       title: title,
       description: _descriptionController.text.trim(),
-      fileName: _pickedFileName ?? 'document',
-      fileSize: _pickedFileSize ?? 'Unknown',
-      filePath: savedPath,
+      fileName: primary != null ? primary['name']! : (_fetchedLocation != null ? 'Location' : 'Information'),
+      fileSize: primary != null ? primary['size']! : '',
+      filePath: primary != null ? primary['path']! : '',
+      colorScheme: _fetchedLocation != null ? 'blue' : 'emerald',
+      locationName: _fetchedLocation?.locationName,
+      latitude: _fetchedLocation?.latitude,
+      longitude: _fetchedLocation?.longitude,
+      mapUrl: _fetchedLocation?.rawUrl,
+      attachmentsJson: savedAttachments.isNotEmpty ? jsonEncode(savedAttachments) : null,
     );
 
     await ItineraryDatabase.instance.insertDocument(docItem);
@@ -453,104 +661,461 @@ class _AddDocumentDialogState extends State<AddDocumentDialog> {
     if (mounted) Navigator.pop(context);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      child: Container(
-        width: 480,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.note_add_rounded, color: Color(0xFF2563EB), size: 22),
-                const SizedBox(width: 10),
-                const Text(
-                  'Add New Document',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+  // --- Formatting Toolbar Widget ---
+  Widget _buildToolbarButton({
+    String? label,
+    IconData? icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    bool isBold = false,
+    bool isItalic = false,
+    bool isUnderline = false,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFFCBD5E1)),
+          ),
+          child: icon != null
+              ? Icon(icon, size: 14, color: const Color(0xFF334155))
+              : Text(
+                  label!,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: const Color(0xFF334155),
+                    fontWeight: isBold ? FontWeight.w900 : FontWeight.bold,
+                    fontStyle: isItalic ? FontStyle.italic : FontStyle.normal,
+                    decoration: isUnderline ? TextDecoration.underline : TextDecoration.none,
+                  ),
                 ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, size: 18, color: Color(0xFF64748B)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormattingToolbar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+        border: Border(
+          top: BorderSide(color: Color(0xFFCBD5E1)),
+          left: BorderSide(color: Color(0xFFCBD5E1)),
+          right: BorderSide(color: Color(0xFFCBD5E1)),
+        ),
+      ),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _buildToolbarButton(
+            label: 'B',
+            tooltip: 'Bold (**text**)',
+            isBold: true,
+            onPressed: () => _formatSelection('**', '**'),
+          ),
+          _buildToolbarButton(
+            label: 'I',
+            tooltip: 'Italic (*text*)',
+            isItalic: true,
+            onPressed: () => _formatSelection('*', '*'),
+          ),
+          _buildToolbarButton(
+            label: 'U',
+            tooltip: 'Underline (<u>text</u>)',
+            isUnderline: true,
+            onPressed: () => _formatSelection('<u>', '</u>'),
+          ),
+          const SizedBox(width: 4),
+          _buildToolbarButton(
+            label: 'H1',
+            tooltip: 'Header 1 (# )',
+            onPressed: () => _formatLine('# '),
+          ),
+          _buildToolbarButton(
+            label: 'H2',
+            tooltip: 'Header 2 (## )',
+            onPressed: () => _formatLine('## '),
+          ),
+          const SizedBox(width: 4),
+          _buildToolbarButton(
+            icon: Icons.format_list_bulleted_rounded,
+            tooltip: 'Bulleted List (- )',
+            onPressed: () => _formatLine('- '),
+          ),
+          _buildToolbarButton(
+            icon: Icons.format_list_numbered_rounded,
+            tooltip: 'Numbered List (1. )',
+            onPressed: () => _formatLine('1. '),
+          ),
+          _buildToolbarButton(
+            icon: Icons.format_quote_rounded,
+            tooltip: 'Blockquote (> )',
+            onPressed: () => _formatLine('> '),
+          ),
+          _buildToolbarButton(
+            icon: Icons.link_rounded,
+            tooltip: 'Link ([title](url))',
+            onPressed: () => _formatSelection('[', '](https://)'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Location Card Widget ---
+  Widget _buildLocationCard(GoogleMapsLocation loc) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF93C5FD), width: 1.2),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2563EB),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.28),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-
-            // Document Type
-            const Text('Document Type', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
-            const SizedBox(height: 6),
-            DropdownButtonFormField<String>(
-              value: _docType,
-              items: _docTypes.map((t) {
-                return DropdownMenuItem(value: t['value'], child: Text(t['label']!, style: const TextStyle(fontSize: 13.5)));
-              }).toList(),
-              onChanged: (val) => setState(() => _docType = val ?? 'other'),
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // Title
-            const Text('Document Title *', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _titleController,
-              decoration: InputDecoration(
-                hintText: 'e.g., Return Flight Tickets',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // File Selector
-            const Text('File Attachment *', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
-            const SizedBox(height: 6),
-            InkWell(
-              onTap: _pickFile,
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFFCBD5E1)),
-                  borderRadius: BorderRadius.circular(10),
-                  color: const Color(0xFFF8FAFC),
+            child: const Icon(Icons.location_on_rounded, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  loc.locationName,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.attach_file_rounded, color: Color(0xFF2563EB), size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _pickedFileName != null ? '$_pickedFileName (${_pickedFileSize})' : 'Browse document file from PC...',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: _pickedFileName != null ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
-                          fontWeight: _pickedFileName != null ? FontWeight.w600 : FontWeight.normal,
+                const SizedBox(height: 4),
+                if (loc.coordinatesDisplay.isNotEmpty)
+                  Row(
+                    children: [
+                      const Icon(Icons.my_location_rounded, size: 12, color: Color(0xFF0284C7)),
+                      const SizedBox(width: 4),
+                      Text(
+                        loc.coordinatesDisplay,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0284C7),
                         ),
-                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Open in Maps Browser',
+            onPressed: () => _openLocationInBrowser(loc.rawUrl),
+            icon: const Icon(Icons.open_in_new_rounded, size: 18, color: Color(0xFF2563EB)),
+            splashRadius: 18,
+          ),
+          IconButton(
+            tooltip: 'Remove Location',
+            onPressed: () {
+              setState(() {
+                _fetchedLocation = null;
+                _mapsUrlController.clear();
+                _locationStatusMessage = null;
+              });
+            },
+            icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
+            splashRadius: 18,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final dialogWidth = (screenSize.width * 0.88).clamp(680.0, 1050.0);
+    final dialogHeight = (screenSize.height * 0.88).clamp(600.0, 880.0);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Container(
+        width: dialogWidth,
+        height: dialogHeight,
+        padding: const EdgeInsets.all(26),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Modal Header
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB), size: 22),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Add Information',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      ),
+                      Text(
+                        'Add trip guidelines, location coordinates, and attach documents',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, size: 20, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+
+            // Scrollable Form Body
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. Information Title
+                    const Text(
+                      'Information Title *',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _titleController,
+                      decoration: InputDecoration(
+                        hintText: 'e.g., Swiss Pass & Rail Guidelines, Hotel Check-in Info, Visas...',
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
+                    const SizedBox(height: 18),
+
+                    // 2. Information Description (TravChad Rich Format)
+                    const Text(
+                      'Information Description',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                    ),
+                    const SizedBox(height: 6),
+                    _buildFormattingToolbar(),
+                    TextField(
+                      controller: _descriptionController,
+                      minLines: 4,
+                      maxLines: 8,
+                      decoration: const InputDecoration(
+                        hintText: 'Write detailed information, guidelines, notes, or bullet points...',
+                        contentPadding: EdgeInsets.all(12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // 3. Attach Documents Section
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Attach Documents',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                            ),
+                            Text(
+                              'Upload vouchers, tickets, passes, PDFs, or photos',
+                              style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _pickFiles,
+                          icon: const Icon(Icons.attach_file_rounded, size: 16),
+                          label: const Text('Browse Files to Attach', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF2563EB),
+                            side: const BorderSide(color: Color(0xFF93C5FD)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Attached Files List
+                    if (_attachedFiles.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.attachment_rounded, size: 18, color: Color(0xFF94A3B8)),
+                            SizedBox(width: 8),
+                            Text('No documents attached yet (optional)', style: TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8))),
+                          ],
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          children: _attachedFiles.asMap().entries.map((entry) {
+                            final idx = entry.key;
+                            final f = entry.value;
+                            final sizeKb = _getFileSizeBytes(f) / 1024;
+                            final sizeStr = sizeKb > 1024 ? '${(sizeKb / 1024).toStringAsFixed(1)} MB' : '${sizeKb.toStringAsFixed(1)} KB';
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(_getFileIcon(f.name), size: 18, color: const Color(0xFF2563EB)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '${f.name} ($sizeStr)',
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
+                                    onPressed: () => _removeFile(idx),
+                                    splashRadius: 14,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                    tooltip: 'Remove',
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    const SizedBox(height: 18),
+
+                    // 4. Adding Location Card
+                    const Text(
+                      'Location Card (Google Maps)',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Paste a Google Maps link to automatically fetch coordinates, lat/long & location name',
+                      style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(height: 8),
+
+                    TextField(
+                      controller: _mapsUrlController,
+                      onChanged: _onMapsUrlChanged,
+                      decoration: InputDecoration(
+                        hintText: 'https://www.google.com/maps/place/... or https://maps.app.goo.gl/...',
+                        prefixIcon: const Icon(Icons.link_rounded, color: Color(0xFF2563EB)),
+                        suffixIcon: _isFetchingLocation
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            : IconButton(
+                                icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFF2563EB)),
+                                tooltip: 'Fetch Location Data',
+                                onPressed: () => _fetchLocationData(_mapsUrlController.text),
+                              ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+
+                    if (_locationStatusMessage != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _locationStatusMessage!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isFetchingLocation ? const Color(0xFF0284C7) : const Color(0xFFDC2626),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+
+                    // Fetched Location Card
+                    if (_fetchedLocation != null) _buildLocationCard(_fetchedLocation!),
+
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: 14),
+                      Text(_errorMessage!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12.5, fontWeight: FontWeight.bold)),
+                    ],
                   ],
                 ),
               ),
             ),
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 8),
-              Text(_errorMessage!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12)),
-            ],
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Actions
+            // Modal Actions
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -558,15 +1123,17 @@ class _AddDocumentDialogState extends State<AddDocumentDialog> {
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 ElevatedButton(
                   onPressed: _save,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
                   ),
-                  child: const Text('Save Document', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text('Save Information', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -576,3 +1143,6 @@ class _AddDocumentDialogState extends State<AddDocumentDialog> {
     );
   }
 }
+
+// Backwards compatibility alias
+typedef AddDocumentDialog = AddInformationDialog;

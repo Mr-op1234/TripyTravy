@@ -121,6 +121,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         itineraryId: _currentTrip.id,
         tripTitle: _currentTrip.title,
         availableEvents: _events,
+        initialDocuments: widget.initialDocuments != null ? _documents : null,
       ),
     ).then((_) => _loadTripData());
   }
