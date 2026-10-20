@@ -1,8 +1,10 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agent_desktop/data/itinerary_database.dart';
 import 'package:agent_desktop/ui/dashboard_screen.dart';
 import 'package:agent_desktop/ui/trip_detail_screen.dart';
+import 'package:agent_desktop/ui/widgets/smooth_scroll.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -310,6 +312,10 @@ void main() {
       // Verify Documents trigger card
       expect(find.text('Information and documents'), findsOneWidget);
 
+      // Verify SmoothScroll wrapper and desktop Scrollbar are present
+      expect(find.byType(SmoothScroll), findsOneWidget);
+      expect(find.byType(Scrollbar), findsOneWidget);
+
       // Verify Itinerary section
       expect(find.text('Itinerary'), findsOneWidget);
       expect(find.text('+ Add Event'), findsOneWidget);
@@ -325,6 +331,52 @@ void main() {
       await tester.tap(find.byIcon(Icons.close).last);
       await tester.pumpAndSettle();
       expect(find.text('Add Itinerary Event'), findsNothing);
+    });
+
+    testWidgets('SmoothScroll animates mouse wheel pointer scrolls smoothly', (tester) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              controller: controller,
+              child: SmoothScroll(
+                controller: controller,
+                child: Column(
+                  children: List.generate(
+                    50,
+                    (index) => SizedBox(
+                      height: 100,
+                      child: Text('Item $index'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(controller.offset, 0.0);
+
+      // Dispatch a pointer scroll event (mouse wheel down 80px)
+      final Offset center = tester.getCenter(find.byType(SingleChildScrollView));
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      pointer.hover(center);
+      await tester.sendEventToBinding(pointer.scroll(const Offset(0, 80)));
+
+      // Mid-animation frame: should be interpolating smoothly between 0 and 80
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(controller.offset, greaterThan(0.0));
+      expect(controller.offset, lessThan(80.0));
+
+      // Settle animation to target
+      await tester.pumpAndSettle();
+      expect(controller.offset, closeTo(80.0, 1.0));
     });
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/itinerary_database.dart';
 import 'trip_editor_dialog.dart';
 import 'trip_detail_screen.dart';
+import 'widgets/smooth_scroll.dart';
 
 class DashboardScreen extends StatefulWidget {
   final List<DestinationItem>? initialDestinations;
@@ -15,12 +16,14 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final TextEditingController _searchController = TextEditingController();
+  late final ScrollController _scrollController;
   List<DestinationItem> _destinations = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
     if (widget.initialDestinations != null) {
       _destinations = List.from(widget.initialDestinations!);
       _isLoading = false;
@@ -42,6 +45,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -222,14 +226,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTopHeader(),
-              const SizedBox(height: 28),
-              _buildCardsSection(),
-            ],
+        child: Scrollbar(
+          controller: _scrollController,
+          interactive: true,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            physics: const ClampingScrollPhysics(),
+            child: SmoothScroll(
+              controller: _scrollController,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RepaintBoundary(child: _buildTopHeader()),
+                  const SizedBox(height: 28),
+                  _buildCardsSection(),
+                ],
+              ),
+            ),
           ),
         ),
       ),

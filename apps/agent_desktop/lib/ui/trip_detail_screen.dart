@@ -5,6 +5,7 @@ import '../data/itinerary_database.dart';
 import 'dialogs/change_banner_dialog.dart';
 import 'dialogs/documents_dialog.dart';
 import 'dialogs/event_editor_dialog.dart';
+import 'widgets/smooth_scroll.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final DestinationItem item;
@@ -24,6 +25,7 @@ class TripDetailScreen extends StatefulWidget {
 
 class _TripDetailScreenState extends State<TripDetailScreen> {
   late DestinationItem _currentTrip;
+  late final ScrollController _scrollController;
   List<TripEventItem> _events = [];
   List<TripDocumentItem> _documents = [];
   final Set<String> _expandedEventIds = {};
@@ -32,6 +34,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
     _currentTrip = widget.item;
     if (widget.initialEvents != null) {
       _events = List.from(widget.initialEvents!);
@@ -40,6 +43,12 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     } else {
       _loadTripData();
     }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadTripData() async {
@@ -247,23 +256,34 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       backgroundColor: const Color(0xFFEEF2F7),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 1. Panoramic Hero Banner
-                  _buildHeroBanner(),
-                  const SizedBox(height: 20),
+          : Scrollbar(
+              controller: _scrollController,
+              interactive: true,
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                physics: const ClampingScrollPhysics(),
+                child: SmoothScroll(
+                  controller: _scrollController,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 1. Panoramic Hero Banner
+                        RepaintBoundary(child: _buildHeroBanner()),
+                        const SizedBox(height: 20),
 
-                  // 2. Information and Documents Trigger Card
-                  _buildDocumentsTriggerCard(),
-                  const SizedBox(height: 24),
+                        // 2. Information and Documents Trigger Card
+                        RepaintBoundary(child: _buildDocumentsTriggerCard()),
+                        const SizedBox(height: 24),
 
-                  // 3. Itinerary Day-by-Day Section
-                  _buildItinerarySection(allExpanded),
-                  const SizedBox(height: 60),
-                ],
+                        // 3. Itinerary Day-by-Day Section
+                        _buildItinerarySection(allExpanded),
+                        const SizedBox(height: 60),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
     );
@@ -843,7 +863,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               itemBuilder: (context, index) {
                 final event = _events[index];
                 final isExpanded = _expandedEventIds.contains(event.id);
-                return _buildEventCard(event, index, isExpanded);
+                return RepaintBoundary(
+                  key: ValueKey(event.id),
+                  child: _buildEventCard(event, index, isExpanded),
+                );
               },
             ),
 
@@ -860,7 +883,6 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     final relatedDocs = _documents.where((d) => d.eventId == event.id).toList();
 
     return Container(
-      key: ValueKey(event.id),
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
