@@ -26,28 +26,13 @@ class _ChangeBannerDialogState extends State<ChangeBannerDialog>
   String _selectedPath = '';
   String? _errorMessage;
 
-  static const List<Map<String, String>> _presets = [
-    {
-      'name': 'Swiss Alps',
-      'path': 'assets/images/switzerland_clean.png',
-    },
-    {
-      'name': 'Mount Fuji & Kyoto',
-      'path': 'assets/images/japan_clean.png',
-    },
-    {
-      'name': 'Malaysia Rainforest',
-      'path': 'assets/images/malaysia_clean.png',
-    },
-  ];
-
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 3,
+      length: 2,
       vsync: this,
-      initialIndex: widget.initialTabIndex.clamp(0, 2),
+      initialIndex: widget.initialTabIndex.clamp(0, 1),
     );
     _selectedPath = widget.currentBannerPath;
     _urlController = TextEditingController(
@@ -194,7 +179,6 @@ class _ChangeBannerDialogState extends State<ChangeBannerDialog>
               tabs: const [
                 Tab(icon: Icon(Icons.upload_file_rounded, size: 18), text: 'Upload'),
                 Tab(icon: Icon(Icons.link_rounded, size: 18), text: 'Paste URL'),
-                Tab(icon: Icon(Icons.auto_awesome_rounded, size: 18), text: 'Presets'),
               ],
             ),
             const SizedBox(height: 16),
@@ -238,49 +222,6 @@ class _ChangeBannerDialogState extends State<ChangeBannerDialog>
                         },
                       ),
                     ],
-                  ),
-
-                  // Tab 3: Presets
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: _presets.map((preset) {
-                      final isSelected = _selectedPath == preset['path'];
-                      return InkWell(
-                        onTap: () => setState(() => _selectedPath = preset['path']!),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: 140,
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected ? const Color(0xFF0066FF) : const Color(0xFFE2E8F0),
-                              width: isSelected ? 2 : 1,
-                            ),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.asset(preset['path']!, height: 60, width: double.infinity, fit: BoxFit.cover),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                preset['name']!,
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                  color: isSelected ? const Color(0xFF0066FF) : const Color(0xFF334155),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
                   ),
                 ],
               ),
