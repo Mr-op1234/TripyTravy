@@ -117,15 +117,19 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final dialogWidth = screenSize.width * 0.92;
+    final dialogHeight = screenSize.height * 0.90;
+
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Container(
-        width: 640,
-        constraints: const BoxConstraints(maxHeight: 680),
-        padding: const EdgeInsets.all(24),
+        width: dialogWidth,
+        height: dialogHeight,
+        padding: const EdgeInsets.all(28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -133,22 +137,22 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
             Row(
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
                     color: const Color(0xFF2563EB),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFF2563EB).withValues(alpha: 0.28),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.folder_shared_rounded, color: Colors.white, size: 22),
+                  child: const Icon(Icons.folder_shared_rounded, color: Colors.white, size: 24),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,25 +160,27 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
                       const Text(
                         'Trip Documents & Information',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF0F172A),
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         'Stored passes, vouchers, and bookings for ${widget.tripTitle}',
-                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                       ),
                     ],
                   ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, color: Color(0xFF64748B)),
+                  icon: const Icon(Icons.close, color: Color(0xFF64748B), size: 22),
+                  tooltip: 'Close (Esc)',
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 22),
 
             // Document list
             Expanded(
@@ -186,123 +192,134 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
-                                width: 56,
-                                height: 56,
+                                width: 80,
+                                height: 80,
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(22),
                                 ),
-                                child: const Icon(Icons.file_copy_outlined, size: 28, color: Color(0xFF94A3B8)),
+                                child: const Icon(Icons.file_copy_outlined, size: 40, color: Color(0xFF94A3B8)),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 18),
                               const Text(
                                 'No documents attached yet',
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 6),
                               const Text(
                                 'Attach flight tickets, hotel vouchers, visas, and insurance.',
-                                style: TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+                                style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
                               ),
                             ],
                           ),
                         )
-                      : ListView.separated(
-                          itemCount: _documents.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final doc = _documents[index];
-                            final color = _getTypeColor(doc.docType);
-                            final bgColor = _getTypeBgColor(doc.docType);
-                            final icon = _getTypeIcon(doc.docType);
-
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isMultiColumn = constraints.maxWidth > 720;
+                            return GridView.builder(
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: constraints.maxWidth > 1150 ? 3 : (isMultiColumn ? 2 : 1),
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 12,
+                                mainAxisExtent: 84,
                               ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: bgColor,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(icon, color: color, size: 20),
+                              itemCount: _documents.length,
+                              itemBuilder: (context, index) {
+                                final doc = _documents[index];
+                                final color = _getTypeColor(doc.docType);
+                                final bgColor = _getTypeBgColor(doc.docType);
+                                final icon = _getTypeIcon(doc.docType);
+
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: bgColor,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Icon(icon, color: color, size: 22),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Text(
-                                              doc.title,
-                                              style: const TextStyle(
-                                                fontSize: 14.5,
-                                                fontWeight: FontWeight.bold,
-                                                color: Color(0xFF0F172A),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: bgColor,
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              child: Text(
-                                                doc.docType.toUpperCase(),
-                                                style: TextStyle(
-                                                  color: color,
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 10,
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    doc.title,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Color(0xFF0F172A),
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
                                                 ),
-                                              ),
+                                                const SizedBox(width: 8),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: bgColor,
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: Text(
+                                                    doc.docType.toUpperCase(),
+                                                    style: TextStyle(
+                                                      color: color,
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 9.5,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              doc.description.isNotEmpty
+                                                  ? '${doc.description} • ${doc.fileName} (${doc.fileSize})'
+                                                  : '${doc.fileName} • ${doc.fileSize}',
+                                              style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ],
                                         ),
-                                        if (doc.description.isNotEmpty) ...[
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            doc.description,
-                                            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                        const SizedBox(height: 3),
-                                        Text(
-                                          '${doc.fileName} • ${doc.fileSize}',
-                                          style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-                                        ),
-                                      ],
-                                    ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      IconButton(
+                                        tooltip: 'Open / View Document',
+                                        onPressed: () => _openFile(doc.filePath),
+                                        icon: const Icon(Icons.open_in_new_rounded, size: 18, color: Color(0xFF2563EB)),
+                                        splashRadius: 18,
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Delete Document',
+                                        onPressed: () => _deleteDoc(doc),
+                                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+                                        splashRadius: 18,
+                                      ),
+                                    ],
                                   ),
-                                  IconButton(
-                                    tooltip: 'Open / View Document',
-                                    onPressed: () => _openFile(doc.filePath),
-                                    icon: const Icon(Icons.open_in_new_rounded, size: 18, color: Color(0xFF2563EB)),
-                                    splashRadius: 18,
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Delete Document',
-                                    onPressed: () => _deleteDoc(doc),
-                                    icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
-                                    splashRadius: 18,
-                                  ),
-                                ],
-                              ),
+                                );
+                              },
                             );
                           },
                         ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // Footer
             Row(
@@ -310,17 +327,21 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Close', style: TextStyle(color: Color(0xFF64748B))),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                  child: const Text('Close', style: TextStyle(color: Color(0xFF64748B), fontSize: 14)),
                 ),
                 ElevatedButton.icon(
                   onPressed: _showAddDocumentDialog,
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('+ Add More Documents', style: TextStyle(fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.add_rounded, size: 19),
+                  label: const Text('+ Add More Documents', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
                   ),
                 ),
               ],
