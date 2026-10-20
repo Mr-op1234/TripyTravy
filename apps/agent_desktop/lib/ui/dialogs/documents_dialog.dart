@@ -545,7 +545,7 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
                 ElevatedButton.icon(
                   onPressed: _showAddInformationDialog,
                   icon: const Icon(Icons.add_rounded, size: 19),
-                  label: const Text('+ Add Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                  label: const Text('Add Information', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,

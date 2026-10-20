@@ -485,16 +485,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
       expect(find.text('Trip Documents & Information'), findsOneWidget);
-      expect(find.text('+ Add Information'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Add Information'), findsOneWidget);
 
-      // Tap + Add Information (Image 1 requirement)
-      await tester.tap(find.text('+ Add Information'));
+      // Tap Add Information button
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Add Information'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
 
       // Verify AddInformationDialog fields (as shown in user mockup)
-      expect(find.text('Add Information'), findsOneWidget);
+      expect(find.descendant(of: find.byType(AddInformationDialog), matching: find.text('Add Information')), findsOneWidget);
       expect(find.text('Title *'), findsOneWidget);
       expect(find.text('Description'), findsWidgets);
       expect(find.text('Attach Documents'), findsOneWidget);
