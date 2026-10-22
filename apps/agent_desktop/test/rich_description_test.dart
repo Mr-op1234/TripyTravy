@@ -5,8 +5,11 @@ import 'package:agent_desktop/ui/widgets/rich_description_editor.dart';
 
 void main() {
   group('RichDescriptionSyntax & Editor Tests', () {
-    test('RichTextEditingController preserves exact text length and plain text', () {
-      const text = 'Here is <b>bold</b>, <i>italic</i>, <mark>highlight</mark>, and [link text](https://example.com) with **markdown bold** and ==yellow==.';
+    test(
+        'RichTextEditingController parses formatted text into pure clean text without raw delimiters',
+        () {
+      const text =
+          'Here is <b>bold</b>, <i>italic</i>, <mark>highlight</mark>, and [link text](https://example.com) with **markdown bold** and ==yellow==.';
       final controller = RichTextEditingController(text: text);
       final span = controller.buildTextSpan(
         context: null as dynamic,
@@ -14,12 +17,18 @@ void main() {
         withComposing: false,
       );
 
-      // The plain text of the span MUST exactly equal the controller text
-      expect(span.toPlainText(includePlaceholders: false), equals(text));
+      const expectedCleanText =
+          'Here is bold, italic, highlight, and link text with markdown bold and yellow.';
+      expect(controller.text, equals(expectedCleanText));
+      expect(span.toPlainText(includePlaceholders: false),
+          equals(expectedCleanText));
     });
 
-    test('RichDescriptionSyntax identifies bold, italic, highlight, and link styles', () {
-      const text = 'Alpha **bold text** Beta <mark>highlighted</mark> Gamma [link label](https://test.com)';
+    test(
+        'RichDescriptionSyntax identifies bold, italic, highlight, underline, and link styles',
+        () {
+      const text =
+          'Alpha **bold text** Beta <mark>highlighted</mark> Gamma <u>underlined</u> Delta [link label](https://test.com)';
       final controller = RichTextEditingController(text: text);
       final span = controller.buildTextSpan(
         context: null as dynamic,
@@ -27,13 +36,15 @@ void main() {
         withComposing: false,
       );
 
-      expect(span.toPlainText(), equals(text));
-      // Verify children spans contain styled elements
+      const expectedClean =
+          'Alpha bold text Beta highlighted Gamma underlined Delta link label';
+      expect(span.toPlainText(), equals(expectedClean));
       final children = span.children!;
       expect(children.isNotEmpty, isTrue);
 
       bool foundBold = false;
       bool foundHighlight = false;
+      bool foundUnderline = false;
       bool foundLink = false;
 
       for (final s in children) {
@@ -41,22 +52,34 @@ void main() {
           if (s.text == 'bold text' && s.style?.fontWeight == FontWeight.bold) {
             foundBold = true;
           }
-          if (s.text == 'highlighted' && s.style?.backgroundColor == const Color(0xFFFEF08A)) {
+          if (s.text == 'highlighted' &&
+              s.style?.backgroundColor == const Color(0xFFFEF08A)) {
             foundHighlight = true;
           }
-          if (s.text == 'link label' && s.style?.color == const Color(0xFF2563EB)) {
+          if (s.text == 'underlined' &&
+              s.style?.decoration == TextDecoration.underline) {
+            foundUnderline = true;
+          }
+          if (s.text == 'link label' &&
+              s.style?.color == const Color(0xFF2563EB)) {
             foundLink = true;
           }
         }
       }
 
       expect(foundBold, isTrue, reason: 'Bold text should have FontWeight.bold');
-      expect(foundHighlight, isTrue, reason: 'Highlight text should have yellow background Color(0xFFFEF08A)');
+      expect(foundHighlight, isTrue,
+          reason: 'Highlight text should have yellow background Color(0xFFFEF08A)');
+      expect(foundUnderline, isTrue,
+          reason: 'Underline text should have TextDecoration.underline');
       expect(foundLink, isTrue, reason: 'Link text should have blue color Color(0xFF2563EB)');
     });
 
-    test('sanitizeDescription converts XML tags to clean markdown and removes XML marks', () {
-      const xmlInput = '<center><b>Important Trip</b></center>\n<mark>Must visit</mark> and <i>pack well</i>. <unknown>text</unknown>';
+    test(
+        'sanitizeDescription converts XML tags to clean markdown and removes XML marks',
+        () {
+      const xmlInput =
+          '<center><b>Important Trip</b></center>\n<mark>Must visit</mark> and <i>pack well</i>. <unknown>text</unknown>';
       final sanitized = sanitizeDescription(xmlInput);
 
       // Verify complete elimination of XML tags
@@ -76,7 +99,8 @@ void main() {
       expect(sanitized, contains('*pack well*'));
     });
 
-    test('EditableTableData handles additions, removals, and markdown conversion', () {
+    test('EditableTableData handles additions, removals, and markdown conversion',
+        () {
       final table = EditableTableData.defaultTable(2, 2);
       expect(table.headers.length, 2);
       expect(table.rows.length, 2);
@@ -101,7 +125,8 @@ void main() {
     });
 
     test('extractTableAndText cleanly separates table and paragraphs', () {
-      const input = 'Pre-table note.\n\n| H1 | H2 |\n| :--- | :--- |\n| C1 | C2 |\n\nPost-table note.';
+      const input =
+          'Pre-table note.\n\n| H1 | H2 |\n| :--- | :--- |\n| C1 | C2 |\n\nPost-table note.';
       final extracted = extractTableAndText(input);
       expect(extracted.table, isNotNull);
       expect(extracted.table!.headers, ['H1', 'H2']);
@@ -110,8 +135,11 @@ void main() {
       expect(extracted.textWithoutTable.contains('| H1 | H2 |'), isFalse);
     });
 
-    testWidgets('RichDescriptionView strips tags and renders formatted spans without literal XML', (tester) async {
-      const rawText = 'Welcome to <mark>Zurich</mark>! See <b>Lake Zurich</b> or visit [Official Site](https://zuerich.com).';
+    testWidgets(
+        'RichDescriptionView strips tags and renders formatted spans without literal XML',
+        (tester) async {
+      const rawText =
+          'Welcome to <mark>Zurich</mark>! See <b>Lake Zurich</b> or visit [Official Site](https://zuerich.com).';
 
       await tester.pumpWidget(
         MaterialApp(
@@ -135,7 +163,9 @@ void main() {
       expect(find.textContaining('Official Site'), findsWidgets);
     });
 
-    testWidgets('RichDescriptionView renders markdown table as a visual Table widget', (tester) async {
+    testWidgets(
+        'RichDescriptionView renders markdown table as a visual Table widget',
+        (tester) async {
       const tableText = '''
 Trip Schedule:
 | Day | Activity | Location |
@@ -159,7 +189,9 @@ Trip Schedule:
       expect(find.text('Mount Titlis'), findsOneWidget);
     });
 
-    testWidgets('RichDescriptionEditor inserts and manages interactive table visually', (tester) async {
+    testWidgets(
+        'RichDescriptionEditor inserts and manages interactive table visually',
+        (tester) async {
       final controller = TextEditingController(text: 'Itinerary details');
       addTearDown(controller.dispose);
 
@@ -197,7 +229,8 @@ Trip Schedule:
       expect(find.text('Table'), findsNothing);
     });
 
-    testWidgets('RichDescriptionEditor handles bullet and numbered lists', (tester) async {
+    testWidgets('RichDescriptionEditor handles bullet and numbered lists',
+        (tester) async {
       final controller = TextEditingController(text: 'Item 1\nItem 2');
       addTearDown(controller.dispose);
 
@@ -211,21 +244,24 @@ Trip Schedule:
       await tester.pumpAndSettle();
 
       // Select all and toggle bullet list
-      controller.selection = const TextSelection(baseOffset: 0, extentOffset: 13);
+      controller.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 13);
       await tester.tap(find.byIcon(Icons.format_list_bulleted_rounded));
       await tester.pumpAndSettle();
 
       expect(controller.text, '• Item 1\n• Item 2');
 
       // Toggle numbered list
-      controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
+      controller.selection =
+          TextSelection(baseOffset: 0, extentOffset: controller.text.length);
       await tester.tap(find.byIcon(Icons.format_list_numbered_rounded));
       await tester.pumpAndSettle();
 
       expect(controller.text, '1. Item 1\n2. Item 2');
     });
 
-    testWidgets('RichDescriptionEditor handles alignment controls', (tester) async {
+    testWidgets('RichDescriptionEditor handles Underline and all 4 alignment controls',
+        (tester) async {
       final controller = TextEditingController(text: 'Centered Headline');
       addTearDown(controller.dispose);
 
@@ -241,15 +277,29 @@ Trip Schedule:
       // Tap align center
       await tester.tap(find.byIcon(Icons.format_align_center_rounded));
       await tester.pumpAndSettle();
-
       expect(controller.text, contains('<!-- align:center -->'));
-      expect(controller.text.contains('<center>'), isFalse);
+
+      // Tap align right
+      await tester.tap(find.byIcon(Icons.format_align_right_rounded));
+      await tester.pumpAndSettle();
+      expect(controller.text, contains('<!-- align:right -->'));
+
+      // Tap justify
+      await tester.tap(find.byIcon(Icons.format_align_justify_rounded));
+      await tester.pumpAndSettle();
+      expect(controller.text, contains('<!-- align:justify -->'));
 
       // Tap align left
       await tester.tap(find.byIcon(Icons.format_align_left_rounded));
       await tester.pumpAndSettle();
+      expect(controller.text.contains('<!-- align:'), isFalse);
 
-      expect(controller.text.contains('<!-- align:center -->'), isFalse);
+      // Select all and click Underline
+      controller.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 17);
+      await tester.tap(find.text('U'));
+      await tester.pumpAndSettle();
+      expect(controller.text, contains('<u>Centered Headline</u>'));
     });
   });
 }
