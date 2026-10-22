@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Lucide-style PenLine painter for highlight/pen button.
 class PenLinePainter extends CustomPainter {
@@ -37,7 +38,8 @@ class PenLinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant PenLinePainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(covariant PenLinePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 /// Lucide-style 2x3 table grid painter for table insertion button.
@@ -54,7 +56,8 @@ class TableGridPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(size.width * 0.12, size.height * 0.12, size.width * 0.76, size.height * 0.76),
+      Rect.fromLTWH(size.width * 0.12, size.height * 0.12, size.width * 0.76,
+          size.height * 0.76),
       const Radius.circular(2.5),
     );
     canvas.drawRRect(rect, paint);
@@ -79,7 +82,8 @@ class TableGridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant TableGridPainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(covariant TableGridPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 /// Lucide-style eraser painter for clear formatting button.
@@ -116,130 +120,271 @@ class EraserPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant EraserPainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(covariant EraserPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
-/// Style per character for in-editor syntax highlighting
+/// Model for an interactive visual table.
+class EditableTableData {
+  List<String> headers;
+  List<List<String>> rows;
+
+  EditableTableData({
+    required this.headers,
+    required this.rows,
+  });
+
+  factory EditableTableData.defaultTable([int r = 2, int c = 3]) {
+    final headers = List.generate(c, (i) => 'Header ${i + 1}');
+    final rows = List.generate(
+      r,
+      (rowIdx) =>
+          List.generate(c, (colIdx) => 'Cell ${rowIdx + 1}-${colIdx + 1}'),
+    );
+    return EditableTableData(headers: headers, rows: rows);
+  }
+
+  void addRow() {
+    rows.add(List.generate(headers.length, (_) => ''));
+  }
+
+  void removeRow() {
+    if (rows.length > 1) {
+      rows.removeLast();
+    }
+  }
+
+  void addColumn() {
+    headers.add('Header ${headers.length + 1}');
+    for (final row in rows) {
+      row.add('');
+    }
+  }
+
+  void removeColumn() {
+    if (headers.length > 1) {
+      headers.removeLast();
+      for (final row in rows) {
+        if (row.isNotEmpty) row.removeLast();
+      }
+    }
+  }
+
+  String toMarkdown() {
+    if (headers.isEmpty) return '';
+    final buf = StringBuffer();
+    buf.write('| ');
+    buf.write(
+        headers.map((h) => h.trim().isEmpty ? ' ' : h.trim()).join(' | '));
+    buf.writeln(' |');
+    buf.write('| ');
+    buf.write(headers.map((_) => ':---').join(' | '));
+    buf.writeln(' |');
+    for (final row in rows) {
+      buf.write('| ');
+      buf.write(row
+          .map((cell) => cell.trim().isEmpty ? ' ' : cell.trim())
+          .join(' | '));
+      buf.writeln(' |');
+    }
+    return buf.toString().trim();
+  }
+
+  static EditableTableData? parseFromMarkdown(String text) {
+    final lines = text.split('\n').map((l) => l.trim()).toList();
+    final tableLines = <String>[];
+    for (final l in lines) {
+      if (l.startsWith('|') && l.endsWith('|')) {
+        tableLines.add(l);
+      }
+    }
+    if (tableLines.length < 2) return null;
+
+    final headerLine = tableLines[0];
+    final headers = headerLine
+        .substring(1, headerLine.length - 1)
+        .split('|')
+        .map((h) => h.trim())
+        .toList();
+
+    if (headers.isEmpty) return null;
+
+    final rows = <List<String>>[];
+    for (int i = 2; i < tableLines.length; i++) {
+      final line = tableLines[i];
+      final cells = line
+          .substring(1, line.length - 1)
+          .split('|')
+          .map((c) => c.trim())
+          .toList();
+      while (cells.length < headers.length) {
+        cells.add('');
+      }
+      rows.add(cells.sublist(0, headers.length));
+    }
+    return EditableTableData(
+      headers: headers,
+      rows: rows.isEmpty ? [List.generate(headers.length, (_) => '')] : rows,
+    );
+  }
+}
+
+/// Helper to separate paragraph text and embedded markdown tables.
+class ExtractedContent {
+  final String textWithoutTable;
+  final EditableTableData? table;
+
+  ExtractedContent({required this.textWithoutTable, this.table});
+}
+
+ExtractedContent extractTableAndText(String raw) {
+  final table = EditableTableData.parseFromMarkdown(raw);
+  if (table == null) {
+    return ExtractedContent(textWithoutTable: raw);
+  }
+
+  final lines = raw.split('\n');
+  final cleanedLines = <String>[];
+  for (final l in lines) {
+    final trimmed = l.trim();
+    if (!(trimmed.startsWith('|') && trimmed.endsWith('|'))) {
+      cleanedLines.add(l);
+    }
+  }
+  final cleanText = cleanedLines.join('\n').trim();
+  return ExtractedContent(textWithoutTable: cleanText, table: table);
+}
+
+/// Sanitizes text by converting any legacy XML/HTML tags into clean Markdown
+/// and removing any stray XML tags.
+String sanitizeDescription(String input) {
+  var s = input;
+  // Convert <mark>...</mark> to ==...==
+  s = s.replaceAllMapped(
+      RegExp(r'<mark[^>]*>(.*?)</mark>', caseSensitive: false, dotAll: true),
+      (m) => '==${m.group(1)}==');
+  // Strip <center>...</center>
+  s = s.replaceAll(RegExp(r'</?center>', caseSensitive: false), '');
+  // Convert <b>...</b> and <strong>...</strong> to **...**
+  s = s.replaceAllMapped(
+      RegExp(r'<(b|strong)>(.*?)</\1>', caseSensitive: false, dotAll: true),
+      (m) => '**${m.group(2)}**');
+  // Convert <i>...</i> and <em>...</em> to *...*
+  s = s.replaceAllMapped(
+      RegExp(r'<(i|em)>(.*?)</\1>', caseSensitive: false, dotAll: true),
+      (m) => '*${m.group(2)}*');
+  // Convert <u>...</u> to clean text or markdown
+  s = s.replaceAllMapped(
+      RegExp(r'<u>(.*?)</u>', caseSensitive: false, dotAll: true),
+      (m) => '${m.group(1)}');
+  // Convert <a href="url">label</a> to [label](url)
+  s = s.replaceAllMapped(
+      RegExp(r'<a\s+href="([^"]*)">(.*?)</a>',
+          caseSensitive: false, dotAll: true),
+      (m) => '[${m.group(2)}](${m.group(1)})');
+  // Strip any remaining XML/HTML tags
+  s = s.replaceAll(RegExp(r'<[^>]+>'), '');
+  return s;
+}
+
+/// Style per character for in-editor syntax formatting
 class _CharFormat {
   bool isBold = false;
   bool isItalic = false;
   bool isHighlight = false;
   bool isLink = false;
-  bool isUnderline = false;
-  bool isStrike = false;
+  bool isBullet = false;
+  bool isNumber = false;
   bool isDelimiter = false;
-  Color? delimiterColor;
 
   bool matches(_CharFormat other) {
     return isBold == other.isBold &&
         isItalic == other.isItalic &&
         isHighlight == other.isHighlight &&
         isLink == other.isLink &&
-        isUnderline == other.isUnderline &&
-        isStrike == other.isStrike &&
-        isDelimiter == other.isDelimiter &&
-        delimiterColor == other.delimiterColor;
+        isBullet == other.isBullet &&
+        isNumber == other.isNumber &&
+        isDelimiter == other.isDelimiter;
   }
 }
 
 /// Rich text editing controller that renders live visual styles in the text editor
 /// (Bold font, Italic slant, TravChad yellow highlight #FEF08A, Blue links #2563EB)
-/// while subtly dimming syntax delimiters so caret positioning remains 100% accurate.
+/// while visually hiding syntax delimiters (fontSize: 0.001) so caret positioning
+/// remains 100% accurate without showing ANY raw XML or markdown tags to the user.
 class RichTextEditingController extends TextEditingController {
   RichTextEditingController({super.text});
 
+  static const Color highlightColor = Color(0xFFFEF08A);
+  static const Color highlightTextColor = Color(0xFF854D0E);
+  static const Color linkColor = Color(0xFF2563EB);
+
   @override
   TextSpan buildTextSpan({
-    required BuildContext? context,
+    BuildContext? context,
     TextStyle? style,
     required bool withComposing,
   }) {
-    final baseStyle = style ?? const TextStyle(fontSize: 14, color: Color(0xFF1E293B), height: 1.5);
-    return RichDescriptionSyntax.buildEditorSpan(text, baseStyle);
-  }
-}
+    final baseStyle =
+        style ?? const TextStyle(fontSize: 14.0, color: Color(0xFF1E293B));
+    final rawText = text;
 
-/// Syntax parser & converter for TravChad rich descriptions
-class RichDescriptionSyntax {
-  static const Color highlightColor = Color(0xFFFEF08A);
-  static const Color highlightTextColor = Color(0xFF0F172A);
-  static const Color linkColor = Color(0xFF2563EB);
-
-  /// Builds a TextSpan for the editor where the exact string characters are preserved,
-  /// but formatted sections display their live visual styles.
-  static TextSpan buildEditorSpan(String text, TextStyle baseStyle) {
-    if (text.isEmpty) {
+    if (rawText.isEmpty) {
       return TextSpan(text: '', style: baseStyle);
     }
 
-    final n = text.length;
-    final flags = List<_CharFormat>.generate(n, (_) => _CharFormat());
+    final n = rawText.length;
+    final flags = List.generate(n, (_) => _CharFormat());
 
-    // 1. Highlight tags: <mark>...</mark>, <mark style="...">...</mark>, ==...==
-    final markRegex = RegExp(r'<mark[^>]*>(.*?)</mark>', caseSensitive: false, dotAll: true);
-    for (final m in markRegex.allMatches(text)) {
-      final openTagEnd = text.indexOf('>', m.start) + 1;
-      final closeTagStart = m.end - 7; // </mark> is 7 chars
-
-      for (int i = m.start; i < openTagEnd && i < n; i++) {
-        flags[i].isDelimiter = true;
-        flags[i].delimiterColor = const Color(0xFFCA8A04);
-      }
-      for (int i = openTagEnd; i < closeTagStart && i < n; i++) {
-        flags[i].isHighlight = true;
-      }
-      for (int i = closeTagStart; i < m.end && i < n; i++) {
-        flags[i].isDelimiter = true;
-        flags[i].delimiterColor = const Color(0xFFCA8A04);
+    // 1. Highlight: ==...== and legacy <mark>...</mark>
+    final highlightRegex = RegExp(r'(==([^=\n]+)==|<mark[^>]*>(.*?)</mark>)',
+        caseSensitive: false, dotAll: true);
+    for (final m in highlightRegex.allMatches(rawText)) {
+      final matchStr = m.group(0)!;
+      if (matchStr.startsWith('==')) {
+        flags[m.start].isDelimiter = true;
+        flags[m.start + 1].isDelimiter = true;
+        for (int i = m.start + 2; i < m.end - 2 && i < n; i++) {
+          flags[i].isHighlight = true;
+        }
+        flags[m.end - 2].isDelimiter = true;
+        flags[m.end - 1].isDelimiter = true;
+      } else {
+        // legacy <mark> tag
+        final openEnd = rawText.indexOf('>', m.start) + 1;
+        final closeStart = m.end - 7;
+        for (int i = m.start; i < openEnd && i < n; i++) {
+          flags[i].isDelimiter = true;
+        }
+        for (int i = openEnd; i < closeStart && i < n; i++) {
+          flags[i].isHighlight = true;
+        }
+        for (int i = closeStart; i < m.end && i < n; i++) {
+          flags[i].isDelimiter = true;
+        }
       }
     }
 
-    final eqHighlightRegex = RegExp(r'==([^=\n]+)==');
-    for (final m in eqHighlightRegex.allMatches(text)) {
-      flags[m.start].isDelimiter = true;
-      flags[m.start + 1].isDelimiter = true;
-      flags[m.start].delimiterColor = const Color(0xFFCA8A04);
-      flags[m.start + 1].delimiterColor = const Color(0xFFCA8A04);
-
-      for (int i = m.start + 2; i < m.end - 2 && i < n; i++) {
-        flags[i].isHighlight = true;
-      }
-
-      flags[m.end - 2].isDelimiter = true;
-      flags[m.end - 1].isDelimiter = true;
-      flags[m.end - 2].delimiterColor = const Color(0xFFCA8A04);
-      flags[m.end - 1].delimiterColor = const Color(0xFFCA8A04);
-    }
-
-    // 2. Bold tags: <b>...</b>, <strong>...</strong>, **...**
-    final bTagRegex = RegExp(r'<b>(.*?)</b>', caseSensitive: false, dotAll: true);
-    for (final m in bTagRegex.allMatches(text)) {
-      for (int i = m.start; i < m.start + 3 && i < n; i++) {
+    // 2. Bold: **...** and legacy <b>...</b> / <strong>...</strong>
+    final bTagRegex =
+        RegExp(r'<(b|strong)>(.*?)</\1>', caseSensitive: false, dotAll: true);
+    for (final m in bTagRegex.allMatches(rawText)) {
+      final openEnd = rawText.indexOf('>', m.start) + 1;
+      final closeTagLen = m.group(1)!.length + 3;
+      final closeStart = m.end - closeTagLen;
+      for (int i = m.start; i < openEnd && i < n; i++) {
         flags[i].isDelimiter = true;
       }
-      for (int i = m.start + 3; i < m.end - 4 && i < n; i++) {
+      for (int i = openEnd; i < closeStart && i < n; i++) {
         flags[i].isBold = true;
       }
-      for (int i = m.end - 4; i < m.end && i < n; i++) {
-        flags[i].isDelimiter = true;
-      }
-    }
-
-    final strongRegex = RegExp(r'<strong>(.*?)</strong>', caseSensitive: false, dotAll: true);
-    for (final m in strongRegex.allMatches(text)) {
-      for (int i = m.start; i < m.start + 8 && i < n; i++) {
-        flags[i].isDelimiter = true;
-      }
-      for (int i = m.start + 8; i < m.end - 9 && i < n; i++) {
-        flags[i].isBold = true;
-      }
-      for (int i = m.end - 9; i < m.end && i < n; i++) {
+      for (int i = closeStart; i < m.end && i < n; i++) {
         flags[i].isDelimiter = true;
       }
     }
 
     final mdBoldRegex = RegExp(r'\*\*([^\*\n]+)\*\*');
-    for (final m in mdBoldRegex.allMatches(text)) {
+    for (final m in mdBoldRegex.allMatches(rawText)) {
       flags[m.start].isDelimiter = true;
       flags[m.start + 1].isDelimiter = true;
       for (int i = m.start + 2; i < m.end - 2 && i < n; i++) {
@@ -249,35 +394,26 @@ class RichDescriptionSyntax {
       flags[m.end - 1].isDelimiter = true;
     }
 
-    // 3. Italic tags: <i>...</i>, <em>...</em>, *...*
-    final iTagRegex = RegExp(r'<i>(.*?)</i>', caseSensitive: false, dotAll: true);
-    for (final m in iTagRegex.allMatches(text)) {
-      for (int i = m.start; i < m.start + 3 && i < n; i++) {
+    // 3. Italic: *...* and legacy <i>...</i> / <em>...</em>
+    final iTagRegex =
+        RegExp(r'<(i|em)>(.*?)</\1>', caseSensitive: false, dotAll: true);
+    for (final m in iTagRegex.allMatches(rawText)) {
+      final openEnd = rawText.indexOf('>', m.start) + 1;
+      final closeTagLen = m.group(1)!.length + 3;
+      final closeStart = m.end - closeTagLen;
+      for (int i = m.start; i < openEnd && i < n; i++) {
         flags[i].isDelimiter = true;
       }
-      for (int i = m.start + 3; i < m.end - 4 && i < n; i++) {
+      for (int i = openEnd; i < closeStart && i < n; i++) {
         flags[i].isItalic = true;
       }
-      for (int i = m.end - 4; i < m.end && i < n; i++) {
-        flags[i].isDelimiter = true;
-      }
-    }
-
-    final emRegex = RegExp(r'<em>(.*?)</em>', caseSensitive: false, dotAll: true);
-    for (final m in emRegex.allMatches(text)) {
-      for (int i = m.start; i < m.start + 4 && i < n; i++) {
-        flags[i].isDelimiter = true;
-      }
-      for (int i = m.start + 4; i < m.end - 5 && i < n; i++) {
-        flags[i].isItalic = true;
-      }
-      for (int i = m.end - 5; i < m.end && i < n; i++) {
+      for (int i = closeStart; i < m.end && i < n; i++) {
         flags[i].isDelimiter = true;
       }
     }
 
     final mdItalicRegex = RegExp(r'(?<!\*)\*([^\*\n]+)\*(?!\*)');
-    for (final m in mdItalicRegex.allMatches(text)) {
+    for (final m in mdItalicRegex.allMatches(rawText)) {
       flags[m.start].isDelimiter = true;
       for (int i = m.start + 1; i < m.end - 1 && i < n; i++) {
         flags[i].isItalic = true;
@@ -285,10 +421,23 @@ class RichDescriptionSyntax {
       flags[m.end - 1].isDelimiter = true;
     }
 
-    // 4. Links: <a href="...">...</a> and [label](url) and raw https://
-    final htmlLinkRegex = RegExp(r'<a\s+href="([^"]*)">(.*?)</a>', caseSensitive: false, dotAll: true);
-    for (final m in htmlLinkRegex.allMatches(text)) {
-      final openEnd = text.indexOf('>', m.start) + 1;
+    // 4. Links: [label](url) and legacy <a href="...">...</a>
+    final mdLinkRegex = RegExp(r'\[([^\]\n]+)\]\(([^)\n]*)\)');
+    for (final m in mdLinkRegex.allMatches(rawText)) {
+      flags[m.start].isDelimiter = true;
+      final closeBracket = rawText.indexOf(']', m.start);
+      for (int i = m.start + 1; i < closeBracket && i < n; i++) {
+        flags[i].isLink = true;
+      }
+      for (int i = closeBracket; i < m.end && i < n; i++) {
+        flags[i].isDelimiter = true;
+      }
+    }
+
+    final htmlLinkRegex = RegExp(r'<a\s+href="([^"]*)">(.*?)</a>',
+        caseSensitive: false, dotAll: true);
+    for (final m in htmlLinkRegex.allMatches(rawText)) {
+      final openEnd = rawText.indexOf('>', m.start) + 1;
       final closeStart = m.end - 4;
       for (int i = m.start; i < openEnd && i < n; i++) {
         flags[i].isDelimiter = true;
@@ -301,43 +450,35 @@ class RichDescriptionSyntax {
       }
     }
 
-    final mdLinkRegex = RegExp(r'\[([^\]\n]+)\]\(([^)\n]*)\)');
-    for (final m in mdLinkRegex.allMatches(text)) {
-      flags[m.start].isDelimiter = true; // [
-      final closeBracket = text.indexOf(']', m.start);
-      for (int i = m.start + 1; i < closeBracket && i < n; i++) {
-        flags[i].isLink = true;
-      }
-      for (int i = closeBracket; i < m.end && i < n; i++) {
-        flags[i].isDelimiter = true; // ](url)
-      }
-    }
-
-    final rawUrlRegex = RegExp(r'https?://[^\s<>"]+');
-    for (final m in rawUrlRegex.allMatches(text)) {
-      bool alreadyMarked = false;
-      for (int i = m.start; i < m.end && i < n; i++) {
-        if (flags[i].isDelimiter || flags[i].isLink) {
-          alreadyMarked = true;
-          break;
-        }
-      }
-      if (!alreadyMarked) {
-        for (int i = m.start; i < m.end && i < n; i++) {
-          flags[i].isLink = true;
-        }
-      }
-    }
-
-    // 5. Center tags: <center> and </center>
-    final centerRegex = RegExp(r'</?center>', caseSensitive: false);
-    for (final m in centerRegex.allMatches(text)) {
+    // 5. Stray legacy XML tags: <center>, </center>, <u>, </u>
+    final strayXmlRegex =
+        RegExp(r'</?(center|u|p)[^>]*>', caseSensitive: false);
+    for (final m in strayXmlRegex.allMatches(rawText)) {
       for (int i = m.start; i < m.end && i < n; i++) {
         flags[i].isDelimiter = true;
       }
     }
 
-    // 6. Build contiguous TextSpans
+    // 6. Bullets at line start: • or -
+    final bulletRegex = RegExp(r'(^|\n)(\s*)([•\-])\s+');
+    for (final m in bulletRegex.allMatches(rawText)) {
+      final bulletIdx = m.start + m.group(1)!.length + m.group(2)!.length;
+      if (bulletIdx < n) {
+        flags[bulletIdx].isBullet = true;
+      }
+    }
+
+    // 7. Numbers at line start: 1. , 2.
+    final numberRegex = RegExp(r'(^|\n)(\s*)(\d+\.)\s+');
+    for (final m in numberRegex.allMatches(rawText)) {
+      final numStart = m.start + m.group(1)!.length + m.group(2)!.length;
+      final numEnd = numStart + m.group(3)!.length;
+      for (int i = numStart; i < numEnd && i < n; i++) {
+        flags[i].isNumber = true;
+      }
+    }
+
+    // 8. Build contiguous TextSpans
     final spans = <TextSpan>[];
     int start = 0;
 
@@ -347,19 +488,17 @@ class RichDescriptionSyntax {
         end++;
       }
 
-      final chunk = text.substring(start, end);
+      final chunk = rawText.substring(start, end);
       final f = flags[start];
 
       TextStyle chunkStyle = baseStyle;
 
       if (f.isDelimiter) {
+        // Hide delimiters completely from human sight so NO raw tags or markdown marks show!
         chunkStyle = baseStyle.copyWith(
-          color: (f.delimiterColor ?? baseStyle.color ?? const Color(0xFF94A3B8)).withValues(alpha: 0.45),
-          fontSize: (baseStyle.fontSize ?? 14.0) * 0.82,
-          fontWeight: FontWeight.normal,
-          fontStyle: FontStyle.normal,
-          decoration: TextDecoration.none,
-          backgroundColor: Colors.transparent,
+          fontSize: 0.001,
+          letterSpacing: -1.0,
+          color: Colors.transparent,
         );
       } else {
         if (f.isBold) {
@@ -383,6 +522,18 @@ class RichDescriptionSyntax {
             fontWeight: f.isBold ? FontWeight.bold : FontWeight.w600,
           );
         }
+        if (f.isBullet) {
+          chunkStyle = chunkStyle.copyWith(
+            color: const Color(0xFF2563EB),
+            fontWeight: FontWeight.bold,
+          );
+        }
+        if (f.isNumber) {
+          chunkStyle = chunkStyle.copyWith(
+            color: const Color(0xFF2563EB),
+            fontWeight: FontWeight.bold,
+          );
+        }
       }
 
       spans.add(TextSpan(text: chunk, style: chunkStyle));
@@ -391,8 +542,14 @@ class RichDescriptionSyntax {
 
     return TextSpan(children: spans);
   }
+}
 
-  /// Completely strips all formatting tags and syntax markers, returning pure text.
+/// Syntax parser and presentation renderer.
+class RichDescriptionSyntax {
+  static const Color highlightColor = Color(0xFFFEF08A);
+  static const Color highlightTextColor = Color(0xFF854D0E);
+  static const Color linkColor = Color(0xFF2563EB);
+
   static String stripTags(String text) {
     return text
         .replaceAll(RegExp(r'<mark[^>]*>', caseSensitive: false), '')
@@ -405,18 +562,13 @@ class RichDescriptionSyntax {
         .replaceAll(RegExp(r'</?em>', caseSensitive: false), '')
         .replaceAll(RegExp(r'(?<!\*)\*(?!\*)'), '')
         .replaceAll(RegExp(r'</?u>', caseSensitive: false), '')
-        .replaceAll(RegExp(r'</?s>', caseSensitive: false), '')
-        .replaceAll(RegExp(r'</?del>', caseSensitive: false), '')
-        .replaceAll('~~', '')
         .replaceAll(RegExp(r'</?center>', caseSensitive: false), '')
-        .replaceAll(RegExp(r'<p[^>]*>', caseSensitive: false), '')
-        .replaceAll(RegExp(r'</p>', caseSensitive: false), '')
-        .replaceAll(RegExp(r'<a\s+href="[^"]*">(.*?)</a>', caseSensitive: false), r'$1')
+        .replaceAll(RegExp(r'<!--\s*align:[^>]*-->'), '')
+        .replaceAll(
+            RegExp(r'<a\s+href="[^"]*">(.*?)</a>', caseSensitive: false), r'$1')
         .replaceAll(RegExp(r'\[([^\]]+)\]\([^)]+\)'), r'$1');
   }
 
-  /// Parses a single line or inline text block into styled InlineSpans for display,
-  /// with ZERO raw XML/markdown tags visible and clickable links active.
   static List<InlineSpan> parseInlineSpans(
     String line,
     TextStyle baseStyle, {
@@ -424,16 +576,12 @@ class RichDescriptionSyntax {
   }) {
     if (line.isEmpty) return [TextSpan(text: '', style: baseStyle)];
 
-    // Tokens to extract: <mark>...</mark>, ==...==, <b>...</b>, <strong>...</strong>, **...**,
-    // <i>...</i>, <em>...</em>, *...*, <u>...</u>, <s>...</s>, <a href="...">...</a>, [label](url), https?://...
     final tokenRegex = RegExp(
       r'(<mark[^>]*>.*?</mark>|==[^=\n]+==|'
       r'<b>.*?</b>|<strong>.*?</strong>|\*\*[^\*\n]+\*\*|'
       r'<i>.*?</i>|<em>.*?</em>|(?<!\*)\*[^\*\n]+\*(?!\*)|'
-      r'<u>.*?</u>|'
-      r'<s>.*?</s>|<del>.*?</del>|~~[^~\n]+~~|'
-      r'<a\s+href="([^"]*)">(.*?)</a>|'
       r'\[([^\]\n]+)\]\(([^)\n]*)\)|'
+      r'<a\s+href="([^"]*)">(.*?)</a>|'
       r'https?://[^\s<>"]+)',
       caseSensitive: false,
       dotAll: true,
@@ -454,7 +602,8 @@ class RichDescriptionSyntax {
 
       // Highlight
       if (matchedStr.toLowerCase().startsWith('<mark')) {
-        final inner = matchedStr.substring(matchedStr.indexOf('>') + 1, matchedStr.length - 7);
+        final inner = matchedStr.substring(
+            matchedStr.indexOf('>') + 1, matchedStr.length - 7);
         spans.addAll(parseInlineSpans(
           inner,
           baseStyle.copyWith(
@@ -464,7 +613,9 @@ class RichDescriptionSyntax {
           ),
           onOpenUrl: onOpenUrl,
         ));
-      } else if (matchedStr.startsWith('==') && matchedStr.endsWith('==') && matchedStr.length >= 4) {
+      } else if (matchedStr.startsWith('==') &&
+          matchedStr.endsWith('==') &&
+          matchedStr.length >= 4) {
         final inner = matchedStr.substring(2, matchedStr.length - 2);
         spans.addAll(parseInlineSpans(
           inner,
@@ -491,7 +642,9 @@ class RichDescriptionSyntax {
           baseStyle.copyWith(fontWeight: FontWeight.bold),
           onOpenUrl: onOpenUrl,
         ));
-      } else if (matchedStr.startsWith('**') && matchedStr.endsWith('**') && matchedStr.length >= 4) {
+      } else if (matchedStr.startsWith('**') &&
+          matchedStr.endsWith('**') &&
+          matchedStr.length >= 4) {
         final inner = matchedStr.substring(2, matchedStr.length - 2);
         spans.addAll(parseInlineSpans(
           inner,
@@ -514,7 +667,9 @@ class RichDescriptionSyntax {
           baseStyle.copyWith(fontStyle: FontStyle.italic),
           onOpenUrl: onOpenUrl,
         ));
-      } else if (matchedStr.startsWith('*') && matchedStr.endsWith('*') && matchedStr.length >= 2) {
+      } else if (matchedStr.startsWith('*') &&
+          matchedStr.endsWith('*') &&
+          matchedStr.length >= 2) {
         final inner = matchedStr.substring(1, matchedStr.length - 1);
         spans.addAll(parseInlineSpans(
           inner,
@@ -522,39 +677,23 @@ class RichDescriptionSyntax {
           onOpenUrl: onOpenUrl,
         ));
       }
-      // HTML Link <a href="...">...</a>
-      else if (matchedStr.toLowerCase().startsWith('<a')) {
-        final url = match.group(2) ?? '';
-        final label = match.group(3) ?? url;
-        spans.add(_buildClickableLinkSpan(label, url, baseStyle, onOpenUrl));
-      }
       // Markdown Link [label](url)
       else if (matchedStr.startsWith('[')) {
-        final label = match.group(4) ?? '';
-        final url = match.group(5) ?? '';
+        final label = match.group(2) ?? '';
+        final url = match.group(3) ?? '';
+        spans.add(_buildClickableLinkSpan(label, url, baseStyle, onOpenUrl));
+      }
+      // HTML Link <a href="...">...</a>
+      else if (matchedStr.toLowerCase().startsWith('<a')) {
+        final url = match.group(4) ?? '';
+        final label = match.group(5) ?? url;
         spans.add(_buildClickableLinkSpan(label, url, baseStyle, onOpenUrl));
       }
       // Raw URL
-      else if (matchedStr.startsWith('http://') || matchedStr.startsWith('https://')) {
-        spans.add(_buildClickableLinkSpan(matchedStr, matchedStr, baseStyle, onOpenUrl));
-      }
-      // Underline
-      else if (matchedStr.toLowerCase().startsWith('<u>')) {
-        final inner = matchedStr.substring(3, matchedStr.length - 4);
-        spans.addAll(parseInlineSpans(
-          inner,
-          baseStyle.copyWith(decoration: TextDecoration.underline),
-          onOpenUrl: onOpenUrl,
-        ));
-      }
-      // Strikethrough
-      else if (matchedStr.startsWith('~~')) {
-        final inner = matchedStr.substring(2, matchedStr.length - 2);
-        spans.addAll(parseInlineSpans(
-          inner,
-          baseStyle.copyWith(decoration: TextDecoration.lineThrough),
-          onOpenUrl: onOpenUrl,
-        ));
+      else if (matchedStr.startsWith('http://') ||
+          matchedStr.startsWith('https://')) {
+        spans.add(_buildClickableLinkSpan(
+            matchedStr, matchedStr, baseStyle, onOpenUrl));
       } else {
         spans.add(TextSpan(text: matchedStr, style: baseStyle));
       }
@@ -607,7 +746,7 @@ class RichDescriptionSyntax {
 }
 
 /// A read-only presentation widget that parses rich descriptions (bold, italics,
-/// yellow highlight #FEF08A, blue clickable links #2563EB, tables, bullet/numbered lists,
+/// yellow highlight #FEF08A, blue clickable links #2563EB, visual tables, bullet/numbered lists,
 /// and alignment) and renders them cleanly with ZERO raw XML/HTML tags visible.
 class RichDescriptionView extends StatelessWidget {
   final String description;
@@ -651,9 +790,22 @@ class RichDescriptionView extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final baseStyle = style ??
+    // Detect alignment metadata
+    TextAlign textAlign = TextAlign.left;
+    if (fullText.contains('<!-- align:center -->') ||
+        fullText.contains('<!--align:center-->') ||
+        fullText.contains('<center>')) {
+      textAlign = TextAlign.center;
+    } else if (fullText.contains('<!-- align:right -->') ||
+        fullText.contains('<!--align:right-->')) {
+      textAlign = TextAlign.right;
+    }
+
+    fullText = sanitizeDescription(fullText);
+
+    final defaultStyle = style ??
         const TextStyle(
-          fontSize: 14.0,
+          fontSize: 13.5,
           color: Color(0xFF334155),
           height: 1.55,
         );
@@ -661,56 +813,55 @@ class RichDescriptionView extends StatelessWidget {
     final blocks = _parseBlocks(fullText);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: blocks.map((b) => _renderBlock(b, baseStyle)).toList(),
+      crossAxisAlignment: textAlign == TextAlign.center
+          ? CrossAxisAlignment.center
+          : (textAlign == TextAlign.right
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start),
+      children:
+          blocks.map((b) => _renderBlock(b, defaultStyle, textAlign)).toList(),
     );
   }
 
   List<_DescriptionBlock> _parseBlocks(String text) {
     final rawLines = text.split('\n');
     final blocks = <_DescriptionBlock>[];
-
     int i = 0;
+
     while (i < rawLines.length) {
       final line = rawLines[i];
       final trimmed = line.trim();
 
-      // 1. Table Block: lines with pipes '|' and divider
+      if (trimmed.isEmpty) {
+        blocks.add(_DescriptionBlock(type: _BlockType.spacer, lines: []));
+        i++;
+        continue;
+      }
+
+      // 1. Table detection
       if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
         final tableLines = <String>[];
-        while (i < rawLines.length && rawLines[i].trim().startsWith('|') && rawLines[i].trim().endsWith('|')) {
+        while (i < rawLines.length &&
+            rawLines[i].trim().startsWith('|') &&
+            rawLines[i].trim().endsWith('|')) {
           tableLines.add(rawLines[i].trim());
           i++;
         }
-        blocks.add(_DescriptionBlock(type: _BlockType.table, lines: tableLines));
+        blocks
+            .add(_DescriptionBlock(type: _BlockType.table, lines: tableLines));
         continue;
       }
 
-      // 2. Empty spacer line
-      if (trimmed.isEmpty) {
-        blocks.add(_DescriptionBlock(type: _BlockType.spacer, lines: ['']));
-        i++;
-        continue;
-      }
-
-      // 3. Centered Block: <center>...</center>
-      if (trimmed.toLowerCase().startsWith('<center>') && trimmed.toLowerCase().endsWith('</center>')) {
-        final uncentered = trimmed.substring(8, trimmed.length - 9);
-        blocks.add(_DescriptionBlock(type: _BlockType.center, lines: [uncentered]));
-        i++;
-        continue;
-      }
-
-      // 4. Bullet list item: starts with • or - or *
+      // 2. Bullet list item: starts with • or - or *
       final bulletMatch = RegExp(r'^\s*[-•\*]\s+(.*)$').firstMatch(line);
       if (bulletMatch != null) {
-        blocks.add(_DescriptionBlock(type: _BlockType.bullet, lines: [bulletMatch.group(1)!]));
+        blocks.add(_DescriptionBlock(
+            type: _BlockType.bullet, lines: [bulletMatch.group(1)!]));
         i++;
         continue;
       }
 
-      // 5. Numbered list item: starts with 1. 2. etc
+      // 3. Numbered list item: starts with 1. 2. etc
       final numMatch = RegExp(r'^\s*(\d+)\.\s+(.*)$').firstMatch(line);
       if (numMatch != null) {
         blocks.add(_DescriptionBlock(
@@ -722,7 +873,7 @@ class RichDescriptionView extends StatelessWidget {
         continue;
       }
 
-      // 6. Regular paragraph line
+      // 4. Regular paragraph
       blocks.add(_DescriptionBlock(type: _BlockType.paragraph, lines: [line]));
       i++;
     }
@@ -730,27 +881,11 @@ class RichDescriptionView extends StatelessWidget {
     return blocks;
   }
 
-  Widget _renderBlock(_DescriptionBlock block, TextStyle baseStyle) {
+  Widget _renderBlock(
+      _DescriptionBlock block, TextStyle baseStyle, TextAlign textAlign) {
     switch (block.type) {
       case _BlockType.spacer:
-        return const SizedBox(height: 8);
-
-      case _BlockType.center:
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2.5),
-          child: Center(
-            child: Text.rich(
-              TextSpan(
-                children: RichDescriptionSyntax.parseInlineSpans(
-                  block.lines.first,
-                  baseStyle,
-                  onOpenUrl: onOpenUrl,
-                ),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        );
+        return const SizedBox(height: 6);
 
       case _BlockType.bullet:
         return Padding(
@@ -760,7 +895,11 @@ class RichDescriptionView extends StatelessWidget {
             children: [
               const Padding(
                 padding: EdgeInsets.only(top: 2, right: 8, left: 4),
-                child: Text('•', style: TextStyle(color: Color(0xFF2563EB), fontSize: 16, fontWeight: FontWeight.bold)),
+                child: Text('•',
+                    style: TextStyle(
+                        color: Color(0xFF2563EB),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold)),
               ),
               Expanded(
                 child: Text.rich(
@@ -771,6 +910,7 @@ class RichDescriptionView extends StatelessWidget {
                       onOpenUrl: onOpenUrl,
                     ),
                   ),
+                  textAlign: textAlign,
                 ),
               ),
             ],
@@ -786,7 +926,11 @@ class RichDescriptionView extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: 1, right: 8, left: 4),
-                child: Text('$numLabel.', style: const TextStyle(color: Color(0xFF64748B), fontSize: 13.5, fontWeight: FontWeight.bold)),
+                child: Text('$numLabel.',
+                    style: const TextStyle(
+                        color: Color(0xFF2563EB),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold)),
               ),
               Expanded(
                 child: Text.rich(
@@ -797,6 +941,7 @@ class RichDescriptionView extends StatelessWidget {
                       onOpenUrl: onOpenUrl,
                     ),
                   ),
+                  textAlign: textAlign,
                 ),
               ),
             ],
@@ -817,6 +962,7 @@ class RichDescriptionView extends StatelessWidget {
                 onOpenUrl: onOpenUrl,
               ),
             ),
+            textAlign: textAlign,
           ),
         );
     }
@@ -829,7 +975,6 @@ class RichDescriptionView extends StatelessWidget {
       if (parts.isNotEmpty && parts.first.isEmpty) parts.removeAt(0);
       if (parts.isNotEmpty && parts.last.isEmpty) parts.removeLast();
 
-      // Skip markdown separator row like | :--- | :--- |
       final isSeparator = parts.every((p) => RegExp(r'^:?-+:?$').hasMatch(p));
       if (!isSeparator && parts.isNotEmpty) {
         parsedRows.add(parts);
@@ -840,7 +985,8 @@ class RichDescriptionView extends StatelessWidget {
 
     final maxCols = parsedRows.map((r) => r.length).reduce(max);
     final headerRow = parsedRows.first;
-    final bodyRows = parsedRows.length > 1 ? parsedRows.sublist(1) : <List<String>>[];
+    final bodyRows =
+        parsedRows.length > 1 ? parsedRows.sublist(1) : <List<String>>[];
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 10),
@@ -858,47 +1004,43 @@ class RichDescriptionView extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: Table(
-        border: const TableBorder(
-          horizontalInside: BorderSide(color: Color(0xFFE2E8F0), width: 1.0),
-          verticalInside: BorderSide(color: Color(0xFFE2E8F0), width: 1.0),
-        ),
+        border: TableBorder.all(color: const Color(0xFFE2E8F0), width: 1.0),
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         children: [
           // Header Row
           TableRow(
             decoration: const BoxDecoration(color: Color(0xFFF8FAFC)),
-            children: List.generate(maxCols, (colIdx) {
-              final cellText = colIdx < headerRow.length ? headerRow[colIdx] : '';
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                alignment: Alignment.centerLeft,
+            children: List.generate(maxCols, (c) {
+              final cellText = c < headerRow.length ? headerRow[c] : '';
+              return Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 child: Text(
                   cellText,
-                  style: baseStyle.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
-                    fontSize: (baseStyle.fontSize ?? 14.0) * 0.95,
-                  ),
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B)),
                 ),
               );
             }),
           ),
           // Body Rows
-          ...bodyRows.map((row) {
+          ...List.generate(bodyRows.length, (r) {
+            final row = bodyRows[r];
+            final isEven = r % 2 == 0;
             return TableRow(
-              children: List.generate(maxCols, (colIdx) {
-                final cellText = colIdx < row.length ? row[colIdx] : '';
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                  alignment: Alignment.centerLeft,
-                  child: Text.rich(
-                    TextSpan(
-                      children: RichDescriptionSyntax.parseInlineSpans(
-                        cellText,
-                        baseStyle.copyWith(fontSize: (baseStyle.fontSize ?? 14.0) * 0.95),
-                        onOpenUrl: onOpenUrl,
-                      ),
-                    ),
+              decoration: BoxDecoration(
+                  color: isEven ? Colors.white : const Color(0xFFFBFDFE)),
+              children: List.generate(maxCols, (c) {
+                final cellText = c < row.length ? row[c] : '';
+                return Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Text(
+                    cellText,
+                    style: const TextStyle(
+                        fontSize: 12.5, color: Color(0xFF334155)),
                   ),
                 );
               }),
@@ -910,7 +1052,7 @@ class RichDescriptionView extends StatelessWidget {
   }
 }
 
-enum _BlockType { paragraph, bullet, numbered, center, table, spacer }
+enum _BlockType { paragraph, bullet, numbered, table, spacer }
 
 class _DescriptionBlock {
   final _BlockType type;
@@ -924,7 +1066,10 @@ class _DescriptionBlock {
   });
 }
 
-/// Rich Description Editor box with toolbar matching the TravChad / Lucide design.
+/// Rich Description Editor box with toolbar matching the TravChad / Lucide design,
+/// supporting real keyboard shortcuts (Ctrl+B, Ctrl+I, Ctrl+H, Ctrl+Z, Ctrl+Y),
+/// bullet & numbered lists with auto-continuation, true text alignment,
+/// and interactive visual tables without ANY raw XML tags.
 class RichDescriptionEditor extends StatefulWidget {
   final TextEditingController controller;
   final String placeholder;
@@ -953,53 +1098,91 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
   int _historyIndex = -1;
   bool _isPerformingUndoRedo = false;
   late final RichTextEditingController _effectiveController;
-  bool _ownsController = false;
+
+  TextAlign _textAlign = TextAlign.left;
+  EditableTableData? _tableData;
 
   @override
   void initState() {
     super.initState();
-    if (widget.controller is RichTextEditingController) {
-      _effectiveController = widget.controller as RichTextEditingController;
-      _ownsController = false;
-    } else {
-      _effectiveController = RichTextEditingController(text: widget.controller.text);
-      _effectiveController.selection = widget.controller.selection;
-      _ownsController = true;
-      _effectiveController.addListener(_syncToWidgetController);
-      widget.controller.addListener(_syncFromWidgetController);
+
+    var rawInitial = widget.controller.text;
+
+    // Detect alignment from metadata
+    if (rawInitial.contains('<!-- align:center -->') ||
+        rawInitial.contains('<!--align:center-->') ||
+        rawInitial.contains('<center>')) {
+      _textAlign = TextAlign.center;
+    } else if (rawInitial.contains('<!-- align:right -->') ||
+        rawInitial.contains('<!--align:right-->')) {
+      _textAlign = TextAlign.right;
     }
+
+    // Sanitize any legacy XML tags
+    final sanitized = sanitizeDescription(rawInitial);
+
+    // Extract table if present
+    final extracted = extractTableAndText(sanitized);
+    _tableData = extracted.table;
+
+    _effectiveController =
+        RichTextEditingController(text: extracted.textWithoutTable);
+    _effectiveController.selection = widget.controller.selection;
+
+    _effectiveController.addListener(_syncToWidgetController);
+    widget.controller.addListener(_syncFromWidgetController);
 
     _pushHistory(_effectiveController.value);
     _effectiveController.addListener(_onTextChanged);
   }
 
   void _syncToWidgetController() {
-    if (widget.controller.value != _effectiveController.value) {
-      widget.controller.value = _effectiveController.value;
+    String full = _effectiveController.text;
+    if (_textAlign == TextAlign.center) {
+      full = '<!-- align:center -->\n$full';
+    } else if (_textAlign == TextAlign.right) {
+      full = '<!-- align:right -->\n$full';
+    }
+    if (_tableData != null && _tableData!.headers.isNotEmpty) {
+      final tableMd = _tableData!.toMarkdown();
+      if (tableMd.isNotEmpty) {
+        full = full.trim().isEmpty ? tableMd : '${full.trim()}\n\n$tableMd';
+      }
+    }
+    if (widget.controller.text != full) {
+      widget.controller.value = TextEditingValue(
+        text: full,
+        selection: _effectiveController.selection,
+      );
     }
   }
 
   void _syncFromWidgetController() {
-    if (_effectiveController.value != widget.controller.value) {
-      _effectiveController.value = widget.controller.value;
+    final raw = widget.controller.text;
+    if (raw.isEmpty && _effectiveController.text.isNotEmpty) {
+      _effectiveController.text = '';
+      _tableData = null;
+    }
+    if (widget.controller.selection.isValid &&
+        widget.controller.selection != _effectiveController.selection) {
+      _effectiveController.selection = widget.controller.selection;
     }
   }
 
   @override
   void dispose() {
     _effectiveController.removeListener(_onTextChanged);
-    if (_ownsController) {
-      _effectiveController.removeListener(_syncToWidgetController);
-      widget.controller.removeListener(_syncFromWidgetController);
-      _effectiveController.dispose();
-    }
+    _effectiveController.removeListener(_syncToWidgetController);
+    widget.controller.removeListener(_syncFromWidgetController);
+    _effectiveController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
   void _onTextChanged() {
     if (_isPerformingUndoRedo) return;
-    if (_history.isEmpty || _history[_historyIndex].text != _effectiveController.text) {
+    if (_history.isEmpty ||
+        _history[_historyIndex].text != _effectiveController.text) {
       _pushHistory(_effectiveController.value);
     }
   }
@@ -1017,7 +1200,8 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
   }
 
   bool get _canUndo => _historyIndex > 0;
-  bool get _canRedo => _historyIndex >= 0 && _historyIndex < _history.length - 1;
+  bool get _canRedo =>
+      _historyIndex >= 0 && _historyIndex < _history.length - 1;
 
   void _undo() {
     if (!_canUndo) return;
@@ -1037,15 +1221,19 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
     setState(() {});
   }
 
-  // --- Formatting Helpers ---
-  void _toggleWrap(
-    String prefix,
-    String suffix, {
-    List<String> alternativePrefixes = const [],
-    List<String> alternativeSuffixes = const [],
-  }) {
+  // --- Keyboard Shortcuts & Event Handling ---
+  void _toggleBold() => _toggleWrap('**', '**');
+  void _toggleItalic() => _toggleWrap('*', '*');
+  void _toggleHighlight() => _toggleWrap('==', '==');
+
+  void _toggleWrap(String prefix, String suffix) {
+    var selection = _effectiveController.selection;
+    if ((!selection.isValid || selection.isCollapsed) &&
+        widget.controller.selection.isValid &&
+        !widget.controller.selection.isCollapsed) {
+      selection = widget.controller.selection;
+    }
     final text = _effectiveController.text;
-    final selection = _effectiveController.selection;
 
     if (!selection.isValid || selection.isCollapsed) {
       final offset = selection.isValid ? selection.start : text.length;
@@ -1057,147 +1245,214 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
     } else {
       final selectedText = selection.textInside(text);
 
-      // Check primary or alternative wrapping to unwrap
-      bool unwrapped = false;
-      final allPrefixes = [prefix, ...alternativePrefixes];
-      final allSuffixes = [suffix, ...alternativeSuffixes];
-
-      for (int i = 0; i < allPrefixes.length; i++) {
-        final p = allPrefixes[i];
-        final s = i < allSuffixes.length ? allSuffixes[i] : suffix;
-
-        if (selectedText.startsWith(p) && selectedText.endsWith(s) && selectedText.length >= p.length + s.length) {
-          final innerText = selectedText.substring(p.length, selectedText.length - s.length);
-          final newText = text.replaceRange(selection.start, selection.end, innerText);
-          _effectiveController.value = TextEditingValue(
-            text: newText,
-            selection: TextSelection(baseOffset: selection.start, extentOffset: selection.start + innerText.length),
-          );
-          unwrapped = true;
-          break;
-        }
-      }
-
-      if (!unwrapped) {
-        // Wrap with primary tags
-        final newText = text.replaceRange(selection.start, selection.end, '$prefix$selectedText$suffix');
+      if (selectedText.startsWith(prefix) &&
+          selectedText.endsWith(suffix) &&
+          selectedText.length >= prefix.length + suffix.length) {
+        // Unwrap
+        final innerText = selectedText.substring(
+            prefix.length, selectedText.length - suffix.length);
+        final newText =
+            text.replaceRange(selection.start, selection.end, innerText);
         _effectiveController.value = TextEditingValue(
           text: newText,
-          selection: TextSelection(baseOffset: selection.start, extentOffset: selection.start + prefix.length + selectedText.length + suffix.length),
+          selection: TextSelection(
+              baseOffset: selection.start,
+              extentOffset: selection.start + innerText.length),
+        );
+      } else {
+        // Wrap
+        final newText = text.replaceRange(
+            selection.start, selection.end, '$prefix$selectedText$suffix');
+        _effectiveController.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection(
+              baseOffset: selection.start,
+              extentOffset: selection.start +
+                  prefix.length +
+                  selectedText.length +
+                  suffix.length),
         );
       }
     }
+    _syncToWidgetController();
     _focusNode.requestFocus();
   }
 
-  void _toggleLinePrefix(String prefix) {
-    final text = _effectiveController.text;
-    final selection = _effectiveController.selection;
-    final cursor = selection.isValid ? selection.start : text.length;
+  // Auto-continue bullet or numbered lists on Enter
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
+      final text = _effectiveController.text;
+      final selection = _effectiveController.selection;
+      if (selection.isValid && selection.isCollapsed) {
+        final cursor = selection.start;
+        final lineStart =
+            cursor <= 0 ? 0 : text.lastIndexOf('\n', cursor - 1) + 1;
+        final currentLine = text.substring(lineStart, cursor);
 
-    final lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
-    final lineEnd = text.indexOf('\n', cursor);
-    final effectiveEnd = lineEnd == -1 ? text.length : lineEnd;
-    final currentLine = text.substring(lineStart, effectiveEnd);
+        // 1. Check Bullet List
+        final bulletMatch = RegExp(r'^(\s*)([•\-])\s+').firstMatch(currentLine);
+        if (bulletMatch != null) {
+          final indent = bulletMatch.group(1) ?? '';
+          final bulletChar = bulletMatch.group(2) ?? '•';
+          final contentAfter = currentLine.substring(bulletMatch.end).trim();
 
-    if (currentLine.startsWith(prefix)) {
-      final updatedLine = currentLine.substring(prefix.length);
-      final newText = text.replaceRange(lineStart, effectiveEnd, updatedLine);
-      _effectiveController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: max(lineStart, cursor - prefix.length)),
-      );
-    } else {
-      final newText = text.replaceRange(lineStart, lineStart, prefix);
-      _effectiveController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: cursor + prefix.length),
-      );
+          if (contentAfter.isEmpty) {
+            // Empty bullet: exit list
+            final newText = text.replaceRange(lineStart, cursor, '');
+            _effectiveController.value = TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: lineStart),
+            );
+            return KeyEventResult.handled;
+          } else {
+            // Continue bullet
+            final prefix = '\n$indent$bulletChar ';
+            final newText = text.replaceRange(cursor, cursor, prefix);
+            _effectiveController.value = TextEditingValue(
+              text: newText,
+              selection:
+                  TextSelection.collapsed(offset: cursor + prefix.length),
+            );
+            return KeyEventResult.handled;
+          }
+        }
+
+        // 2. Check Numbered List
+        final numMatch = RegExp(r'^(\s*)(\d+)\.\s+').firstMatch(currentLine);
+        if (numMatch != null) {
+          final indent = numMatch.group(1) ?? '';
+          final numVal = int.parse(numMatch.group(2)!);
+          final contentAfter = currentLine.substring(numMatch.end).trim();
+
+          if (contentAfter.isEmpty) {
+            // Empty number: exit list
+            final newText = text.replaceRange(lineStart, cursor, '');
+            _effectiveController.value = TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: lineStart),
+            );
+            return KeyEventResult.handled;
+          } else {
+            // Continue numbering
+            final prefix = '\n$indent${numVal + 1}. ';
+            final newText = text.replaceRange(cursor, cursor, prefix);
+            _effectiveController.value = TextEditingValue(
+              text: newText,
+              selection:
+                  TextSelection.collapsed(offset: cursor + prefix.length),
+            );
+            return KeyEventResult.handled;
+          }
+        }
+      }
     }
+    return KeyEventResult.ignored;
+  }
+
+  void _toggleBulletList() {
+    final text = _effectiveController.text;
+    var selection = _effectiveController.selection;
+    if ((!selection.isValid || selection.isCollapsed) &&
+        widget.controller.selection.isValid &&
+        !widget.controller.selection.isCollapsed) {
+      selection = widget.controller.selection;
+    }
+    if (!selection.isValid) return;
+
+    final start = selection.start;
+    final end = selection.end;
+
+    final lineStart = start <= 0 ? 0 : text.lastIndexOf('\n', start - 1) + 1;
+    final lineEnd = text.indexOf('\n', end);
+    final effectiveEnd = lineEnd == -1 ? text.length : lineEnd;
+
+    final selectedLines = text.substring(lineStart, effectiveEnd).split('\n');
+    final allBulleted = selectedLines
+        .every((l) => l.trim().startsWith('• ') || l.trim().startsWith('- '));
+
+    final newLines = selectedLines.map((l) {
+      if (allBulleted) {
+        return l.replaceFirst(RegExp(r'^\s*([•\-])\s*'), '');
+      } else {
+        if (l.trim().isEmpty) return l;
+        if (l.trim().startsWith('• ') || l.trim().startsWith('- ')) return l;
+        final cleaned = l.replaceFirst(RegExp(r'^\s*\d+\.\s*'), '');
+        return '• $cleaned';
+      }
+    }).toList();
+
+    final replacement = newLines.join('\n');
+    final newText = text.replaceRange(lineStart, effectiveEnd, replacement);
+    _effectiveController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection(
+          baseOffset: lineStart, extentOffset: lineStart + replacement.length),
+    );
+    _syncToWidgetController();
     _focusNode.requestFocus();
   }
 
   void _toggleNumberedList() {
     final text = _effectiveController.text;
-    final selection = _effectiveController.selection;
-    final cursor = selection.isValid ? selection.start : text.length;
-
-    final lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
-    final lineEnd = text.indexOf('\n', cursor);
-    final effectiveEnd = lineEnd == -1 ? text.length : lineEnd;
-    final currentLine = text.substring(lineStart, effectiveEnd);
-
-    final match = RegExp(r'^\d+\.\s+').firstMatch(currentLine);
-    if (match != null) {
-      final updatedLine = currentLine.substring(match.end);
-      final newText = text.replaceRange(lineStart, effectiveEnd, updatedLine);
-      _effectiveController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: max(lineStart, cursor - match.end)),
-      );
-    } else {
-      const prefix = '1. ';
-      final newText = text.replaceRange(lineStart, lineStart, prefix);
-      _effectiveController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: cursor + prefix.length),
-      );
+    var selection = _effectiveController.selection;
+    if ((!selection.isValid || selection.isCollapsed) &&
+        widget.controller.selection.isValid &&
+        !widget.controller.selection.isCollapsed) {
+      selection = widget.controller.selection;
     }
+    if (!selection.isValid) return;
+
+    final start = selection.start;
+    final end = selection.end;
+
+    final lineStart = start <= 0 ? 0 : text.lastIndexOf('\n', start - 1) + 1;
+    final lineEnd = text.indexOf('\n', end);
+    final effectiveEnd = lineEnd == -1 ? text.length : lineEnd;
+
+    final selectedLines = text.substring(lineStart, effectiveEnd).split('\n');
+    final allNumbered =
+        selectedLines.every((l) => RegExp(r'^\s*\d+\.\s*').hasMatch(l));
+
+    int count = 1;
+    final newLines = selectedLines.map((l) {
+      if (allNumbered) {
+        return l.replaceFirst(RegExp(r'^\s*\d+\.\s*'), '');
+      } else {
+        if (l.trim().isEmpty) return l;
+        final cleaned = l.replaceFirst(RegExp(r'^\s*([•\-]|\d+\.)\s*'), '');
+        final res = '$count. $cleaned';
+        count++;
+        return res;
+      }
+    }).toList();
+
+    final replacement = newLines.join('\n');
+    final newText = text.replaceRange(lineStart, effectiveEnd, replacement);
+    _effectiveController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection(
+          baseOffset: lineStart, extentOffset: lineStart + replacement.length),
+    );
+    _syncToWidgetController();
     _focusNode.requestFocus();
   }
 
-  void _toggleCenterAlign() {
-    final text = _effectiveController.text;
-    final selection = _effectiveController.selection;
-    final cursor = selection.isValid ? selection.start : text.length;
-
-    final lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
-    final lineEnd = text.indexOf('\n', cursor);
-    final effectiveEnd = lineEnd == -1 ? text.length : lineEnd;
-    final currentLine = text.substring(lineStart, effectiveEnd);
-
-    if (currentLine.startsWith('<center>') && currentLine.endsWith('</center>')) {
-      final uncentered = currentLine.substring(8, currentLine.length - 9);
-      final newText = text.replaceRange(lineStart, effectiveEnd, uncentered);
-      _effectiveController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: lineStart + uncentered.length),
-      );
-    } else {
-      final centered = '<center>$currentLine</center>';
-      final newText = text.replaceRange(lineStart, effectiveEnd, centered);
-      _effectiveController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: lineStart + centered.length - 9),
-      );
-    }
-    _focusNode.requestFocus();
-  }
-
-  void _alignLeft() {
-    final text = _effectiveController.text;
-    final selection = _effectiveController.selection;
-    final cursor = selection.isValid ? selection.start : text.length;
-
-    final lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
-    final lineEnd = text.indexOf('\n', cursor);
-    final effectiveEnd = lineEnd == -1 ? text.length : lineEnd;
-    final currentLine = text.substring(lineStart, effectiveEnd);
-
-    if (currentLine.startsWith('<center>') && currentLine.endsWith('</center>')) {
-      final uncentered = currentLine.substring(8, currentLine.length - 9);
-      final newText = text.replaceRange(lineStart, effectiveEnd, uncentered);
-      _effectiveController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: lineStart + uncentered.length),
-      );
-    }
+  void _setAlignment(TextAlign align) {
+    setState(() {
+      _textAlign = align;
+    });
+    _syncToWidgetController();
     _focusNode.requestFocus();
   }
 
   void _clearFormatting() {
     final text = _effectiveController.text;
-    final selection = _effectiveController.selection;
+    var selection = _effectiveController.selection;
+    if ((!selection.isValid || selection.isCollapsed) &&
+        widget.controller.selection.isValid &&
+        !widget.controller.selection.isCollapsed) {
+      selection = widget.controller.selection;
+    }
 
     if (!selection.isValid || selection.isCollapsed) {
       final cleaned = RichDescriptionSyntax.stripTags(text)
@@ -1214,13 +1469,28 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
           .replaceAll(RegExp(r'^\s*[-•\*]\s+', multiLine: true), '')
           .replaceAll(RegExp(r'^\s*\d+\.\s+', multiLine: true), '');
 
-      final newText = text.replaceRange(selection.start, selection.end, cleaned);
+      final newText =
+          text.replaceRange(selection.start, selection.end, cleaned);
       _effectiveController.value = TextEditingValue(
         text: newText,
-        selection: TextSelection(baseOffset: selection.start, extentOffset: selection.start + cleaned.length),
+        selection: TextSelection(
+            baseOffset: selection.start,
+            extentOffset: selection.start + cleaned.length),
       );
     }
+    _syncToWidgetController();
     _focusNode.requestFocus();
+  }
+
+  void _toggleTable() {
+    setState(() {
+      if (_tableData == null) {
+        _tableData = EditableTableData.defaultTable(2, 3);
+      } else {
+        _tableData!.addRow();
+      }
+    });
+    _syncToWidgetController();
   }
 
   void _showInsertLinkDialog() {
@@ -1239,7 +1509,11 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
           children: [
             Icon(Icons.link_rounded, color: Color(0xFF2563EB), size: 22),
             SizedBox(width: 8),
-            Text('Insert Link', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+            Text('Insert Link',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A))),
           ],
         ),
         content: SizedBox(
@@ -1251,19 +1525,19 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
                 controller: linkTextCtrl,
                 decoration: InputDecoration(
                   labelText: 'Link Text',
-                  hintText: 'e.g. Airline Ticket Portal',
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
+                  hintText: 'e.g. Official Site',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextField(
                 controller: urlCtrl,
                 decoration: InputDecoration(
-                  labelText: 'Web URL',
+                  labelText: 'URL',
                   hintText: 'https://...',
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             ],
@@ -1272,28 +1546,37 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+            child: const Text('Cancel',
+                style: TextStyle(color: Color(0xFF64748B))),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              final label = linkTextCtrl.text.trim().isEmpty ? 'Link' : linkTextCtrl.text.trim();
-              final url = urlCtrl.text.trim().isEmpty ? 'https://' : urlCtrl.text.trim();
+              final label = linkTextCtrl.text.trim().isEmpty
+                  ? 'Link'
+                  : linkTextCtrl.text.trim();
+              final url = urlCtrl.text.trim().isEmpty
+                  ? 'https://'
+                  : urlCtrl.text.trim();
               final mdLink = '[$label]($url)';
 
               final text = _effectiveController.text;
               if (selection.isValid && !selection.isCollapsed) {
-                final newText = text.replaceRange(selection.start, selection.end, mdLink);
+                final newText =
+                    text.replaceRange(selection.start, selection.end, mdLink);
                 _effectiveController.value = TextEditingValue(
                   text: newText,
-                  selection: TextSelection.collapsed(offset: selection.start + mdLink.length),
+                  selection: TextSelection.collapsed(
+                      offset: selection.start + mdLink.length),
                 );
               } else {
-                final offset = selection.isValid ? selection.start : text.length;
+                final offset =
+                    selection.isValid ? selection.start : text.length;
                 final newText = text.replaceRange(offset, offset, mdLink);
                 _effectiveController.value = TextEditingValue(
                   text: newText,
-                  selection: TextSelection.collapsed(offset: offset + mdLink.length),
+                  selection:
+                      TextSelection.collapsed(offset: offset + mdLink.length),
                 );
               }
               _focusNode.requestFocus();
@@ -1301,206 +1584,44 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2563EB),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(9)),
             ),
-            child: const Text('Insert Link', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Insert Link',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  void _showInsertTableDialog() {
-    int rows = 3;
-    int cols = 3;
-
-    void insert(int r, int c) {
-      String tableMd = '\n|';
-      for (int i = 1; i <= c; i++) {
-        tableMd += ' Header $i |';
-      }
-      tableMd += '\n|';
-      for (int i = 1; i <= c; i++) {
-        tableMd += ' :--- |';
-      }
-      for (int j = 1; j <= r; j++) {
-        tableMd += '\n|';
-        for (int i = 1; i <= c; i++) {
-          tableMd += ' Cell $j-$i |';
-        }
-      }
-      tableMd += '\n\n';
-
-      final text = _effectiveController.text;
-      final selection = _effectiveController.selection;
-      final offset = selection.isValid ? selection.start : text.length;
-      final newText = text.replaceRange(offset, offset, tableMd);
-      _effectiveController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: offset + tableMd.length),
-      );
-      _focusNode.requestFocus();
-    }
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              CustomPaint(size: Size(18, 18), painter: TableGridPainter(color: Color(0xFF2563EB))),
-              SizedBox(width: 10),
-              Text('Insert Table', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-            ],
-          ),
-          content: SizedBox(
-            width: 320,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Quick Presets:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          insert(2, 2);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          side: const BorderSide(color: Color(0xFFCBD5E1)),
-                        ),
-                        child: const Text('2 × 2', style: TextStyle(fontSize: 12.5, color: Color(0xFF334155))),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          insert(3, 3);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          side: const BorderSide(color: Color(0xFFCBD5E1)),
-                        ),
-                        child: const Text('3 × 3', style: TextStyle(fontSize: 12.5, color: Color(0xFF334155))),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          insert(4, 2);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          side: const BorderSide(color: Color(0xFFCBD5E1)),
-                        ),
-                        child: const Text('4 × 2', style: TextStyle(fontSize: 12.5, color: Color(0xFF334155))),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Divider(color: Color(0xFFE2E8F0)),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Rows', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                          const SizedBox(height: 4),
-                          TextFormField(
-                            initialValue: '$rows',
-                            keyboardType: TextInputType.number,
-                            onChanged: (v) => rows = max(1, int.tryParse(v) ?? 1),
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Columns', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                          const SizedBox(height: 4),
-                          TextFormField(
-                            initialValue: '$cols',
-                            keyboardType: TextInputType.number,
-                            onChanged: (v) => cols = max(1, int.tryParse(v) ?? 1),
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                insert(rows, cols);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-              ),
-              child: const Text('Insert Table', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _toggleFullscreen() {
-    if (widget.isFullscreen) {
-      if (widget.onExitFullscreen != null) {
-        widget.onExitFullscreen!();
-      } else {
-        Navigator.pop(context);
-      }
+    if (widget.isFullscreen && widget.onExitFullscreen != null) {
+      widget.onExitFullscreen!();
     } else {
       showDialog(
         context: context,
         builder: (ctx) => Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           backgroundColor: Colors.white,
-          insetPadding: const EdgeInsets.all(24),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Container(
-            padding: const EdgeInsets.all(20),
+            width: 1000,
+            padding: const EdgeInsets.all(24),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
                       'Description Editor (Fullscreen)',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A)),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close, color: Color(0xFF64748B)),
@@ -1511,7 +1632,7 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
                 const SizedBox(height: 12),
                 Expanded(
                   child: RichDescriptionEditor(
-                    controller: _effectiveController,
+                    controller: widget.controller,
                     placeholder: widget.placeholder,
                     minLines: 20,
                     maxLines: null,
@@ -1535,13 +1656,17 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
     required String tooltip,
     required VoidCallback? onPressed,
     bool enabled = true,
+    bool active = false,
   }) {
-    final activeColor = enabled ? const Color(0xFF475569) : const Color(0xFFCBD5E1);
+    final activeColor = active
+        ? const Color(0xFF2563EB)
+        : (enabled ? const Color(0xFF475569) : const Color(0xFFCBD5E1));
 
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: Colors.transparent,
+        color: active ? const Color(0xFFEFF6FF) : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
         child: InkWell(
           onTap: enabled ? onPressed : null,
           borderRadius: BorderRadius.circular(6),
@@ -1550,14 +1675,23 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
             width: 30,
             height: 30,
             alignment: Alignment.center,
+            decoration: active
+                ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    border:
+                        Border.all(color: const Color(0xFFBFDBFE), width: 1.0),
+                  )
+                : null,
             child: customWidget ??
                 (text != null
                     ? Text(
                         text,
                         style: TextStyle(
                           fontSize: 14.5,
-                          fontWeight: text == 'B' ? FontWeight.w800 : FontWeight.w600,
-                          fontStyle: text == 'I' ? FontStyle.italic : FontStyle.normal,
+                          fontWeight:
+                              text == 'B' ? FontWeight.w800 : FontWeight.w600,
+                          fontStyle:
+                              text == 'I' ? FontStyle.italic : FontStyle.normal,
                           color: activeColor,
                         ),
                       )
@@ -1577,152 +1711,445 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildTableActionButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFCBD5E1)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: const Color(0xFF2563EB)),
+            const SizedBox(width: 3),
+            Text(
+              label,
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF334155)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInteractiveTableCard() {
+    if (_tableData == null) return const SizedBox.shrink();
+
+    final table = _tableData!;
     return Container(
+      margin: const EdgeInsets.only(top: 12, bottom: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+        border: Border.all(color: const Color(0xFFCBD5E1), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Toolbar matching uploaded image
+          // Table Card Header Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: const BoxDecoration(
               color: Color(0xFFF8FAFC),
               borderRadius: BorderRadius.vertical(top: Radius.circular(11)),
-              border: Border(
-                bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1.0),
-              ),
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
             ),
             child: Row(
               children: [
-                // Group 1: B, I, PenLine, Link
-                _buildIconButton(
-                  text: 'B',
-                  tooltip: 'Bold (Ctrl+B)',
-                  onPressed: () => _toggleWrap('**', '**', alternativePrefixes: ['<b>'], alternativeSuffixes: ['</b>']),
+                const Icon(Icons.table_chart_rounded,
+                    size: 16, color: Color(0xFF2563EB)),
+                const SizedBox(width: 8),
+                const Text(
+                  'Table',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A)),
                 ),
-                _buildIconButton(
-                  text: 'I',
-                  tooltip: 'Italic (Ctrl+I)',
-                  onPressed: () => _toggleWrap('*', '*', alternativePrefixes: ['<i>'], alternativeSuffixes: ['</i>']),
-                ),
-                _buildIconButton(
-                  customWidget: const CustomPaint(
-                    size: Size(16, 16),
-                    painter: PenLinePainter(color: Color(0xFF475569)),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  tooltip: 'Highlight Text (<mark>)',
-                  onPressed: () => _toggleWrap('<mark>', '</mark>', alternativePrefixes: ['=='], alternativeSuffixes: ['==']),
-                ),
-                _buildIconButton(
-                  icon: Icons.link_rounded,
-                  tooltip: 'Insert Link',
-                  onPressed: _showInsertLinkDialog,
-                ),
-
-                _buildDivider(),
-
-                // Group 2: Bullet List, Numbered List, Align Center, Align Left, Table
-                _buildIconButton(
-                  icon: Icons.format_list_bulleted_rounded,
-                  tooltip: 'Bulleted List',
-                  onPressed: () => _toggleLinePrefix('- '),
-                ),
-                _buildIconButton(
-                  icon: Icons.format_list_numbered_rounded,
-                  tooltip: 'Numbered List',
-                  onPressed: _toggleNumberedList,
-                ),
-                _buildIconButton(
-                  icon: Icons.format_align_center_rounded,
-                  tooltip: 'Align Center',
-                  onPressed: _toggleCenterAlign,
-                ),
-                _buildIconButton(
-                  icon: Icons.format_align_left_rounded,
-                  tooltip: 'Align Left',
-                  onPressed: _alignLeft,
-                ),
-                _buildIconButton(
-                  customWidget: const CustomPaint(
-                    size: Size(16, 16),
-                    painter: TableGridPainter(color: Color(0xFF475569)),
+                  child: Text(
+                    '${table.rows.length} rows × ${table.headers.length} cols',
+                    style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2563EB)),
                   ),
-                  tooltip: 'Insert Table',
-                  onPressed: _showInsertTableDialog,
                 ),
-
-                _buildDivider(),
-
-                // Group 3: Eraser / Clear Formatting
-                _buildIconButton(
-                  customWidget: const CustomPaint(
-                    size: Size(16, 16),
-                    painter: EraserPainter(color: Color(0xFF475569)),
-                  ),
-                  tooltip: 'Clear Formatting',
-                  onPressed: _clearFormatting,
-                ),
-
                 const Spacer(),
-
-                // Group 4: Undo, Redo
-                _buildIconButton(
-                  icon: Icons.undo_rounded,
-                  tooltip: 'Undo',
-                  enabled: _canUndo,
-                  onPressed: _canUndo ? _undo : null,
+                // Actions
+                _buildTableActionButton(
+                  label: '+ Row',
+                  icon: Icons.add_rounded,
+                  onPressed: () {
+                    setState(() => table.addRow());
+                    _syncToWidgetController();
+                  },
                 ),
-                _buildIconButton(
-                  icon: Icons.redo_rounded,
-                  tooltip: 'Redo',
-                  enabled: _canRedo,
-                  onPressed: _canRedo ? _redo : null,
+                const SizedBox(width: 6),
+                if (table.rows.length > 1) ...[
+                  _buildTableActionButton(
+                    label: '- Row',
+                    icon: Icons.remove_rounded,
+                    onPressed: () {
+                      setState(() => table.removeRow());
+                      _syncToWidgetController();
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                _buildTableActionButton(
+                  label: '+ Col',
+                  icon: Icons.add_rounded,
+                  onPressed: () {
+                    setState(() => table.addColumn());
+                    _syncToWidgetController();
+                  },
                 ),
-
-                _buildDivider(),
-
-                // Group 5: Fullscreen / Maximize
-                _buildIconButton(
-                  icon: widget.isFullscreen ? Icons.fullscreen_exit_rounded : Icons.crop_free_rounded,
-                  tooltip: widget.isFullscreen ? 'Exit Fullscreen' : 'Fullscreen',
-                  onPressed: _toggleFullscreen,
+                const SizedBox(width: 6),
+                if (table.headers.length > 1) ...[
+                  _buildTableActionButton(
+                    label: '- Col',
+                    icon: Icons.remove_rounded,
+                    onPressed: () {
+                      setState(() => table.removeColumn());
+                      _syncToWidgetController();
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                IconButton(
+                  tooltip: 'Delete Table',
+                  icon: const Icon(Icons.delete_outline_rounded,
+                      size: 16, color: Color(0xFFDC2626)),
+                  splashRadius: 16,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 26, minHeight: 26),
+                  onPressed: () {
+                    setState(() => _tableData = null);
+                    _syncToWidgetController();
+                  },
                 ),
               ],
             ),
           ),
 
-          // Editable Canvas
-          Expanded(
-            flex: widget.isFullscreen ? 1 : 0,
-            child: TextField(
-              controller: _effectiveController,
-              focusNode: _focusNode,
-              minLines: widget.isFullscreen ? 18 : widget.minLines,
-              maxLines: widget.isFullscreen ? null : widget.maxLines,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF1E293B),
-                height: 1.5,
+          // Visual Table Grid
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.all(12),
+            child: Table(
+              defaultColumnWidth: const IntrinsicColumnWidth(),
+              border: TableBorder.all(
+                color: const Color(0xFFCBD5E1),
+                width: 1.0,
+                borderRadius: BorderRadius.circular(6),
               ),
-              decoration: InputDecoration(
-                hintText: widget.placeholder,
-                hintStyle: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF94A3B8),
-                  height: 1.5,
+              children: [
+                // Header Row
+                TableRow(
+                  decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
+                  children: List.generate(table.headers.length, (colIdx) {
+                    return Container(
+                      width: 140,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      child: TextFormField(
+                        key:
+                            ValueKey('tbl_hdr_${table.headers.length}_$colIdx'),
+                        initialValue: table.headers[colIdx],
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding:
+                              EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                          border: InputBorder.none,
+                          hintText: 'Header',
+                          hintStyle: TextStyle(
+                              fontSize: 12.5, color: Color(0xFF94A3B8)),
+                        ),
+                        onChanged: (val) {
+                          table.headers[colIdx] = val;
+                          _syncToWidgetController();
+                        },
+                      ),
+                    );
+                  }),
                 ),
-                contentPadding: const EdgeInsets.all(14),
-                border: InputBorder.none,
-              ),
+                // Data Rows
+                ...List.generate(table.rows.length, (rowIdx) {
+                  final isEven = rowIdx % 2 == 0;
+                  return TableRow(
+                    decoration: BoxDecoration(
+                        color: isEven ? Colors.white : const Color(0xFFFBFDFE)),
+                    children: List.generate(table.headers.length, (colIdx) {
+                      final cellVal = colIdx < table.rows[rowIdx].length
+                          ? table.rows[rowIdx][colIdx]
+                          : '';
+                      return Container(
+                        width: 140,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        child: TextFormField(
+                          key: ValueKey(
+                              'tbl_cell_${table.rows.length}_${table.headers.length}_${rowIdx}_$colIdx'),
+                          initialValue: cellVal,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF334155),
+                          ),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 6),
+                            border: InputBorder.none,
+                            hintText: 'Cell',
+                            hintStyle: TextStyle(
+                                fontSize: 12.5, color: Color(0xFFCBD5E1)),
+                          ),
+                          onChanged: (val) {
+                            while (table.rows[rowIdx].length <= colIdx) {
+                              table.rows[rowIdx].add('');
+                            }
+                            table.rows[rowIdx][colIdx] = val;
+                            _syncToWidgetController();
+                          },
+                        ),
+                      );
+                    }),
+                  );
+                }),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyB, control: true):
+            _toggleBold,
+        const SingleActivator(LogicalKeyboardKey.keyB, meta: true): _toggleBold,
+        const SingleActivator(LogicalKeyboardKey.keyI, control: true):
+            _toggleItalic,
+        const SingleActivator(LogicalKeyboardKey.keyI, meta: true):
+            _toggleItalic,
+        const SingleActivator(LogicalKeyboardKey.keyH, control: true):
+            _toggleHighlight,
+        const SingleActivator(LogicalKeyboardKey.keyH, meta: true):
+            _toggleHighlight,
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true): _undo,
+        const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): _undo,
+        const SingleActivator(LogicalKeyboardKey.keyY, control: true): _redo,
+        const SingleActivator(LogicalKeyboardKey.keyY, meta: true): _redo,
+        const SingleActivator(LogicalKeyboardKey.keyZ,
+            control: true, shift: true): _redo,
+        const SingleActivator(LogicalKeyboardKey.keyZ, meta: true, shift: true):
+            _redo,
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Toolbar matching uploaded image
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(11)),
+                border: Border(
+                  bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1.0),
+                ),
+              ),
+              child: Row(
+                children: [
+                  // Group 1: B, I, PenLine, Link
+                  _buildIconButton(
+                    text: 'B',
+                    tooltip: 'Bold (Ctrl+B)',
+                    onPressed: _toggleBold,
+                  ),
+                  _buildIconButton(
+                    text: 'I',
+                    tooltip: 'Italic (Ctrl+I)',
+                    onPressed: _toggleItalic,
+                  ),
+                  _buildIconButton(
+                    customWidget: const CustomPaint(
+                      size: Size(16, 16),
+                      painter: PenLinePainter(color: Color(0xFF475569)),
+                    ),
+                    tooltip: 'Highlight Text (Ctrl+H)',
+                    onPressed: _toggleHighlight,
+                  ),
+                  _buildIconButton(
+                    icon: Icons.link_rounded,
+                    tooltip: 'Insert Link',
+                    onPressed: _showInsertLinkDialog,
+                  ),
+
+                  _buildDivider(),
+
+                  // Group 2: Bullet List, Numbered List, Align Left, Align Center, Table
+                  _buildIconButton(
+                    icon: Icons.format_list_bulleted_rounded,
+                    tooltip: 'Bulleted List',
+                    onPressed: _toggleBulletList,
+                  ),
+                  _buildIconButton(
+                    icon: Icons.format_list_numbered_rounded,
+                    tooltip: 'Numbered List',
+                    onPressed: _toggleNumberedList,
+                  ),
+                  _buildIconButton(
+                    icon: Icons.format_align_left_rounded,
+                    tooltip: 'Align Left',
+                    active: _textAlign == TextAlign.left,
+                    onPressed: () => _setAlignment(TextAlign.left),
+                  ),
+                  _buildIconButton(
+                    icon: Icons.format_align_center_rounded,
+                    tooltip: 'Align Center',
+                    active: _textAlign == TextAlign.center,
+                    onPressed: () => _setAlignment(TextAlign.center),
+                  ),
+                  _buildIconButton(
+                    customWidget: CustomPaint(
+                      size: const Size(16, 16),
+                      painter: TableGridPainter(
+                        color: _tableData != null
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFF475569),
+                      ),
+                    ),
+                    tooltip:
+                        _tableData == null ? 'Insert Table' : 'Add Table Row',
+                    active: _tableData != null,
+                    onPressed: _toggleTable,
+                  ),
+
+                  _buildDivider(),
+
+                  // Group 3: Eraser / Clear Formatting
+                  _buildIconButton(
+                    customWidget: const CustomPaint(
+                      size: Size(16, 16),
+                      painter: EraserPainter(color: Color(0xFF475569)),
+                    ),
+                    tooltip: 'Clear Formatting',
+                    onPressed: _clearFormatting,
+                  ),
+
+                  const Spacer(),
+
+                  // Group 4: Undo, Redo
+                  _buildIconButton(
+                    icon: Icons.undo_rounded,
+                    tooltip: 'Undo (Ctrl+Z)',
+                    enabled: _canUndo,
+                    onPressed: _canUndo ? _undo : null,
+                  ),
+                  _buildIconButton(
+                    icon: Icons.redo_rounded,
+                    tooltip: 'Redo (Ctrl+Y)',
+                    enabled: _canRedo,
+                    onPressed: _canRedo ? _redo : null,
+                  ),
+
+                  _buildDivider(),
+
+                  // Group 5: Fullscreen / Maximize
+                  _buildIconButton(
+                    icon: widget.isFullscreen
+                        ? Icons.fullscreen_exit_rounded
+                        : Icons.crop_free_rounded,
+                    tooltip:
+                        widget.isFullscreen ? 'Exit Fullscreen' : 'Fullscreen',
+                    onPressed: _toggleFullscreen,
+                  ),
+                ],
+              ),
+            ),
+
+            // Editable Canvas
+            Focus(
+              onKeyEvent: _handleKeyEvent,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: _effectiveController,
+                      focusNode: _focusNode,
+                      textAlign: _textAlign,
+                      minLines: widget.isFullscreen ? 15 : widget.minLines,
+                      maxLines: widget.isFullscreen ? null : widget.maxLines,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF1E293B),
+                        height: 1.5,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: widget.placeholder,
+                        hintStyle: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF94A3B8),
+                          height: 1.5,
+                        ),
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                        border: InputBorder.none,
+                      ),
+                    ),
+
+                    // Interactive Visual Table
+                    if (_tableData != null) _buildInteractiveTableCard(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
