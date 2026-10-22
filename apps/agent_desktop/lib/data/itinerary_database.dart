@@ -101,9 +101,75 @@ class DestinationItem {
   }
 }
 
+/// Entity representing a Day in an Itinerary
+class TripDayItem {
+  final String id;
+  final int itineraryId;
+  final int dayNumber;
+  final String title;
+  final String? date;
+  final String? description;
+  final int sortOrder;
+
+  const TripDayItem({
+    required this.id,
+    required this.itineraryId,
+    required this.dayNumber,
+    required this.title,
+    this.date,
+    this.description,
+    this.sortOrder = 0,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'itinerary_id': itineraryId,
+      'day_number': dayNumber,
+      'title': title,
+      'date': date,
+      'description': description,
+      'sort_order': sortOrder,
+    };
+  }
+
+  factory TripDayItem.fromMap(Map<String, dynamic> map) {
+    return TripDayItem(
+      id: map['id'] as String,
+      itineraryId: map['itinerary_id'] as int,
+      dayNumber: map['day_number'] as int? ?? 1,
+      title: map['title'] as String,
+      date: map['date'] as String?,
+      description: map['description'] as String?,
+      sortOrder: map['sort_order'] as int? ?? 0,
+    );
+  }
+
+  TripDayItem copyWith({
+    String? id,
+    int? itineraryId,
+    int? dayNumber,
+    String? title,
+    String? date,
+    String? description,
+    int? sortOrder,
+  }) {
+    return TripDayItem(
+      id: id ?? this.id,
+      itineraryId: itineraryId ?? this.itineraryId,
+      dayNumber: dayNumber ?? this.dayNumber,
+      title: title ?? this.title,
+      date: date ?? this.date,
+      description: description ?? this.description,
+      sortOrder: sortOrder ?? this.sortOrder,
+    );
+  }
+}
+
 class TripEventItem {
   final String id;
   final int itineraryId;
+  final String? dayId;
   final int dayNumber;
   final String title;
   final String eventDate;
@@ -113,13 +179,19 @@ class TripEventItem {
   final String location;
   final String description;
   final String coverImage;
-  final List<String> photos;
+  final List<String> photos; // Actual PNG/JPG photos
   final List<String> notes;
   final int sortOrder;
+  final String? locationName;
+  final double? latitude;
+  final double? longitude;
+  final String? mapUrl;
+  final String? attachmentsJson; // Attached document vouchers, passes, tickets
 
   const TripEventItem({
     required this.id,
     required this.itineraryId,
+    this.dayId,
     this.dayNumber = 1,
     required this.title,
     required this.eventDate,
@@ -132,12 +204,38 @@ class TripEventItem {
     this.photos = const [],
     this.notes = const [],
     this.sortOrder = 0,
+    this.locationName,
+    this.latitude,
+    this.longitude,
+    this.mapUrl,
+    this.attachmentsJson,
   });
+
+  bool get hasLocation => locationName != null && locationName!.trim().isNotEmpty;
+  bool get hasCoordinates => latitude != null && longitude != null;
+
+  String get coordinatesDisplay {
+    if (!hasCoordinates) return '';
+    final latStr = '${latitude!.abs().toStringAsFixed(4)}° ${latitude! >= 0 ? "N" : "S"}';
+    final lngStr = '${longitude!.abs().toStringAsFixed(4)}° ${longitude! >= 0 ? "E" : "W"}';
+    return '$latStr, $lngStr';
+  }
+
+  List<Map<String, String>> get attachments {
+    if (attachmentsJson != null && attachmentsJson!.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(attachmentsJson!) as List<dynamic>;
+        return decoded.map((e) => Map<String, String>.from(e as Map)).toList();
+      } catch (_) {}
+    }
+    return [];
+  }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'itinerary_id': itineraryId,
+      'day_id': dayId,
       'day_number': dayNumber,
       'title': title,
       'event_date': eventDate,
@@ -150,6 +248,11 @@ class TripEventItem {
       'photos_json': jsonEncode(photos),
       'notes_json': jsonEncode(notes),
       'sort_order': sortOrder,
+      'location_name': locationName,
+      'latitude': latitude,
+      'longitude': longitude,
+      'map_url': mapUrl,
+      'attachments_json': attachmentsJson,
     };
   }
 
@@ -177,9 +280,10 @@ class TripEventItem {
     return TripEventItem(
       id: map['id'] as String,
       itineraryId: map['itinerary_id'] as int,
+      dayId: map['day_id'] as String?,
       dayNumber: map['day_number'] as int? ?? 1,
       title: map['title'] as String,
-      eventDate: map['event_date'] as String,
+      eventDate: map['event_date'] as String? ?? '',
       startTime: map['start_time'] as String?,
       endTime: map['end_time'] as String?,
       duration: map['duration'] as String? ?? '',
@@ -189,12 +293,18 @@ class TripEventItem {
       photos: parsedPhotos,
       notes: parsedNotes,
       sortOrder: map['sort_order'] as int? ?? 0,
+      locationName: map['location_name'] as String?,
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
+      mapUrl: map['map_url'] as String?,
+      attachmentsJson: map['attachments_json'] as String?,
     );
   }
 
   TripEventItem copyWith({
     String? id,
     int? itineraryId,
+    String? dayId,
     int? dayNumber,
     String? title,
     String? eventDate,
@@ -207,10 +317,16 @@ class TripEventItem {
     List<String>? photos,
     List<String>? notes,
     int? sortOrder,
+    String? locationName,
+    double? latitude,
+    double? longitude,
+    String? mapUrl,
+    String? attachmentsJson,
   }) {
     return TripEventItem(
       id: id ?? this.id,
       itineraryId: itineraryId ?? this.itineraryId,
+      dayId: dayId ?? this.dayId,
       dayNumber: dayNumber ?? this.dayNumber,
       title: title ?? this.title,
       eventDate: eventDate ?? this.eventDate,
@@ -223,6 +339,11 @@ class TripEventItem {
       photos: photos ?? this.photos,
       notes: notes ?? this.notes,
       sortOrder: sortOrder ?? this.sortOrder,
+      locationName: locationName ?? this.locationName,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      mapUrl: mapUrl ?? this.mapUrl,
+      attachmentsJson: attachmentsJson ?? this.attachmentsJson,
     );
   }
 }
@@ -610,6 +731,7 @@ class ItineraryDatabase {
 
     await _createEventAndDocTables(db);
     await _ensureDocumentColumns(db);
+    await _ensureEventColumns(db);
     return db;
   }
 
@@ -627,13 +749,45 @@ class ItineraryDatabase {
     }
   }
 
+  static Future<void> _ensureEventColumns(Database db) async {
+    for (final col in [
+      'day_id TEXT',
+      'location_name TEXT',
+      'latitude REAL',
+      'longitude REAL',
+      'map_url TEXT',
+      'attachments_json TEXT',
+    ]) {
+      try {
+        await db.execute('ALTER TABLE trip_events ADD COLUMN $col');
+      } catch (_) {}
+    }
+  }
+
   static Future<void> _createEventAndDocTables(Database db) async {
-    // 1. Trip Events Table (Child of itineraries)
+    // 0. Itinerary Days Table (Child of itineraries)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS itinerary_days (
+        id TEXT PRIMARY KEY,
+        itinerary_id INTEGER NOT NULL,
+        day_number INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        date TEXT,
+        description TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_days_itinerary ON itinerary_days(itinerary_id);');
+
+    // 1. Trip Events Table (Child of itineraries, optionally associated with day)
     await db.execute('''
       CREATE TABLE IF NOT EXISTS trip_events (
         id TEXT PRIMARY KEY,
         itinerary_id INTEGER NOT NULL,
-        day_number INTEGER NOT NULL,
+        day_id TEXT,
+        day_number INTEGER NOT NULL DEFAULT 1,
         title TEXT NOT NULL,
         event_date TEXT NOT NULL,
         start_time TEXT,
@@ -645,7 +799,13 @@ class ItineraryDatabase {
         photos_json TEXT,
         notes_json TEXT,
         sort_order INTEGER NOT NULL,
-        FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE
+        location_name TEXT,
+        latitude REAL,
+        longitude REAL,
+        map_url TEXT,
+        attachments_json TEXT,
+        FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE,
+        FOREIGN KEY (day_id) REFERENCES itinerary_days(id) ON DELETE CASCADE
       )
     ''');
 
@@ -839,7 +999,65 @@ class ItineraryDatabase {
     );
   }
 
+  // --- Days CRUD ---
+  Future<List<TripDayItem>> getDaysForItinerary(int itineraryId) async {
+    final db = await database;
+    final maps = await db.query(
+      'itinerary_days',
+      where: 'itinerary_id = ?',
+      whereArgs: [itineraryId],
+      orderBy: 'sort_order ASC, day_number ASC, id ASC',
+    );
+    return maps.map((m) => TripDayItem.fromMap(m)).toList();
+  }
+
+  Future<int> insertDay(TripDayItem day) async {
+    final db = await database;
+    return await db.insert('itinerary_days', day.toMap());
+  }
+
+  Future<int> updateDay(TripDayItem day) async {
+    final db = await database;
+    return await db.update(
+      'itinerary_days',
+      day.toMap(),
+      where: 'id = ?',
+      whereArgs: [day.id],
+    );
+  }
+
+  Future<int> deleteDay(String dayId) async {
+    final db = await database;
+    await db.delete('trip_events', where: 'day_id = ?', whereArgs: [dayId]);
+    return await db.delete('itinerary_days', where: 'id = ?', whereArgs: [dayId]);
+  }
+
+  Future<void> reorderDays(List<TripDayItem> days) async {
+    final db = await database;
+    final batch = db.batch();
+    for (int i = 0; i < days.length; i++) {
+      batch.update(
+        'itinerary_days',
+        {'sort_order': i, 'day_number': i + 1},
+        where: 'id = ?',
+        whereArgs: [days[i].id],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
   // --- Events CRUD ---
+  Future<List<TripEventItem>> getEventsForDay(int itineraryId, String dayId) async {
+    final db = await database;
+    final maps = await db.query(
+      'trip_events',
+      where: 'itinerary_id = ? AND (day_id = ? OR day_number = ?)',
+      whereArgs: [itineraryId, dayId, int.tryParse(dayId) ?? -1],
+      orderBy: 'sort_order ASC, start_time ASC, id ASC',
+    );
+    return maps.map((m) => TripEventItem.fromMap(m)).toList();
+  }
+
   Future<List<TripEventItem>> getEventsForItinerary(int itineraryId) async {
     final db = await database;
     final maps = await db.query(

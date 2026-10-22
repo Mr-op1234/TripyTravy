@@ -50,24 +50,6 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
     }
   }
 
-  Color _getTypeColor(TripDocumentItem doc) {
-    if (doc.hasLocation) return const Color(0xFF0284C7);
-    if (doc.attachments.isNotEmpty) return const Color(0xFF2563EB);
-    return const Color(0xFF059669);
-  }
-
-  Color _getTypeBgColor(TripDocumentItem doc) {
-    if (doc.hasLocation) return const Color(0xFFE0F2FE);
-    if (doc.attachments.isNotEmpty) return const Color(0xFFEFF6FF);
-    return const Color(0xFFECFDF5);
-  }
-
-  IconData _getTypeIcon(TripDocumentItem doc) {
-    if (doc.hasLocation) return Icons.location_on_rounded;
-    if (doc.attachments.isNotEmpty) return Icons.folder_shared_rounded;
-    return Icons.info_outline_rounded;
-  }
-
   void _openFile(String path) {
     if (path.isEmpty) return;
     try {

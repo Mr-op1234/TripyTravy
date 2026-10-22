@@ -14,26 +14,31 @@ class GoogleMapsLocation {
     required this.rawUrl,
   });
 
+  bool get hasCoordinates => latitude != null && longitude != null;
+
   String get coordinatesDisplay {
     if (latitude == null || longitude == null) return '';
-    final latStr = '${latitude!.abs().toStringAsFixed(4)}° ${latitude! >= 0 ? "N" : "S"}';
-    final lngStr = '${longitude!.abs().toStringAsFixed(4)}° ${longitude! >= 0 ? "E" : "W"}';
+    final latStr =
+        '${latitude!.abs().toStringAsFixed(4)}° ${latitude! >= 0 ? "N" : "S"}';
+    final lngStr =
+        '${longitude!.abs().toStringAsFixed(4)}° ${longitude! >= 0 ? "E" : "W"}';
     return '$latStr, $lngStr';
   }
 
   Map<String, dynamic> toMap() => {
-    'locationName': locationName,
-    'latitude': latitude,
-    'longitude': longitude,
-    'rawUrl': rawUrl,
-  };
+        'locationName': locationName,
+        'latitude': latitude,
+        'longitude': longitude,
+        'rawUrl': rawUrl,
+      };
 
-  factory GoogleMapsLocation.fromMap(Map<String, dynamic> map) => GoogleMapsLocation(
-    locationName: map['locationName'] as String? ?? '',
-    latitude: (map['latitude'] as num?)?.toDouble(),
-    longitude: (map['longitude'] as num?)?.toDouble(),
-    rawUrl: map['rawUrl'] as String? ?? '',
-  );
+  factory GoogleMapsLocation.fromMap(Map<String, dynamic> map) =>
+      GoogleMapsLocation(
+        locationName: map['locationName'] as String? ?? '',
+        latitude: (map['latitude'] as num?)?.toDouble(),
+        longitude: (map['longitude'] as num?)?.toDouble(),
+        rawUrl: map['rawUrl'] as String? ?? '',
+      );
 }
 
 class GoogleMapsHelper {
@@ -47,7 +52,8 @@ class GoogleMapsHelper {
     String targetUrl = trimmed;
 
     // Check if it is a shortened Google Maps URL (follow 301/302 redirects)
-    if (trimmed.contains('maps.app.goo.gl') || trimmed.contains('goo.gl/maps')) {
+    if (trimmed.contains('maps.app.goo.gl') ||
+        trimmed.contains('goo.gl/maps')) {
       targetUrl = await _resolveRedirect(trimmed);
     }
 
@@ -56,8 +62,10 @@ class GoogleMapsHelper {
 
     // If coordinates were found but location name is missing or generic, reverse geocode
     if (result != null && result.latitude != null && result.longitude != null) {
-      if (result.locationName.isEmpty || result.locationName.startsWith('Location (')) {
-        final reverseName = await _reverseGeocode(result.latitude!, result.longitude!);
+      if (result.locationName.isEmpty ||
+          result.locationName.startsWith('Location (')) {
+        final reverseName =
+            await _reverseGeocode(result.latitude!, result.longitude!);
         if (reverseName != null && reverseName.isNotEmpty) {
           result = GoogleMapsLocation(
             locationName: reverseName,
@@ -70,7 +78,8 @@ class GoogleMapsHelper {
     }
 
     // If location name was found but coordinates are missing, forward geocode
-    if (result != null && (result.latitude == null || result.longitude == null)) {
+    if (result != null &&
+        (result.latitude == null || result.longitude == null)) {
       if (result.locationName.isNotEmpty) {
         final coords = await _forwardGeocode(result.locationName);
         if (coords != null) {
@@ -129,7 +138,9 @@ class GoogleMapsHelper {
 
     // 3. Try query parameters ll= or q= or query=
     if (lat == null || lng == null) {
-      final queryCoordMatch = RegExp(r'[?&](?:ll|q|query)=(-?\d+\.\d+),(-?\d+\.\d+)').firstMatch(url);
+      final queryCoordMatch =
+          RegExp(r'[?&](?:ll|q|query)=(-?\d+\.\d+),(-?\d+\.\d+)')
+              .firstMatch(url);
       if (queryCoordMatch != null) {
         lat = double.tryParse(queryCoordMatch.group(1)!);
         lng = double.tryParse(queryCoordMatch.group(2)!);

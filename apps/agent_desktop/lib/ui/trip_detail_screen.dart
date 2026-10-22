@@ -1,20 +1,32 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
+
 import '../data/itinerary_database.dart';
+
 import 'dialogs/change_banner_dialog.dart';
+
 import 'dialogs/documents_dialog.dart';
-import 'dialogs/event_editor_dialog.dart';
+
+import 'dialogs/day_detail_dialog.dart';
+
 import 'widgets/smooth_scroll.dart';
+
 import 'widgets/rich_description_editor.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final DestinationItem item;
+
+  final List<TripDayItem>? initialDays;
+
   final List<TripEventItem>? initialEvents;
+
   final List<TripDocumentItem>? initialDocuments;
 
   const TripDetailScreen({
     super.key,
     required this.item,
+    this.initialDays,
     this.initialEvents,
     this.initialDocuments,
   });
@@ -25,20 +37,66 @@ class TripDetailScreen extends StatefulWidget {
 
 class _TripDetailScreenState extends State<TripDetailScreen> {
   late DestinationItem _currentTrip;
+
   late final ScrollController _scrollController;
+
+  List<TripDayItem> _days = [];
+
+  Map<String, int> _dayEventCounts = {};
+
   List<TripEventItem> _events = [];
+
   List<TripDocumentItem> _documents = [];
-  final Set<String> _expandedEventIds = {};
+
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+
     _scrollController = ScrollController();
+
     _currentTrip = widget.item;
-    if (widget.initialEvents != null) {
-      _events = List.from(widget.initialEvents!);
+
+    if (widget.initialEvents != null || widget.initialDays != null) {
+      if (widget.initialDays != null) {
+        _days = List.from(widget.initialDays!);
+      }
+
+      _events = List.from(widget.initialEvents ?? []);
+
       _documents = List.from(widget.initialDocuments ?? []);
+
+      // If days are empty but initialEvents exist, synthesize day cards
+
+      if (_days.isEmpty && _events.isNotEmpty) {
+        final dayNumbers = _events.map((e) => e.dayNumber).toSet().toList()
+          ..sort();
+
+        for (final dn in dayNumbers) {
+          _days.add(TripDayItem(
+            id: 'day_${widget.item.id}_$dn',
+            itineraryId: widget.item.id,
+            dayNumber: dn,
+            title: 'Day $dn',
+            sortOrder: dn - 1,
+          ));
+        }
+      }
+
+      final counts = <String, int>{};
+
+      for (final e in _events) {
+        if (e.dayId != null) {
+          counts[e.dayId!] = (counts[e.dayId!] ?? 0) + 1;
+        } else {
+          counts['day_${e.dayNumber}'] =
+              (counts['day_${e.dayNumber}'] ?? 0) + 1;
+        }
+      }
+
+      _dayEventCounts = counts;
+
       _isLoading = false;
     } else {
       _loadTripData();
@@ -48,55 +106,105 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+
     super.dispose();
   }
 
   Future<void> _loadTripData() async {
-    final updatedTrip = await ItineraryDatabase.instance.getItineraryById(_currentTrip.id);
-    final events = await ItineraryDatabase.instance.getEventsForItinerary(_currentTrip.id);
-    final docs = await ItineraryDatabase.instance.getDocumentsForItinerary(_currentTrip.id);
+    final updatedTrip =
+        await ItineraryDatabase.instance.getItineraryById(_currentTrip.id);
+
+    final days =
+        await ItineraryDatabase.instance.getDaysForItinerary(_currentTrip.id);
+
+    final events =
+        await ItineraryDatabase.instance.getEventsForItinerary(_currentTrip.id);
+
+    final docs = await ItineraryDatabase.instance
+        .getDocumentsForItinerary(_currentTrip.id);
+
+    final counts = <String, int>{};
+
+    for (final e in events) {
+      if (e.dayId != null) {
+        counts[e.dayId!] = (counts[e.dayId!] ?? 0) + 1;
+      } else {
+        counts['day_${e.dayNumber}'] = (counts['day_${e.dayNumber}'] ?? 0) + 1;
+      }
+    }
 
     if (mounted) {
       setState(() {
         if (updatedTrip != null) _currentTrip = updatedTrip;
+
+        _days = days;
+
+        _dayEventCounts = counts;
+
         _events = events;
+
         _documents = docs;
+
         _isLoading = false;
       });
     }
   }
 
-  void _toggleExpandAll() {
-    setState(() {
-      if (_expandedEventIds.length == _events.length) {
-        _expandedEventIds.clear();
-      } else {
-        _expandedEventIds.addAll(_events.map((e) => e.id));
-      }
-    });
+  void _showAddDayDialog({TripDayItem? dayToEdit}) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AddDayDialog(
+        itineraryId: _currentTrip.id,
+        dayToEdit: dayToEdit,
+        nextDayNumber: _days.length + 1,
+        onDaySaved: () {
+          _loadTripData();
+        },
+      ),
+    );
   }
 
-  void _toggleExpand(String id) {
-    setState(() {
-      if (_expandedEventIds.contains(id)) {
-        _expandedEventIds.remove(id);
-      } else {
-        _expandedEventIds.add(id);
-      }
-    });
+  void _openDayDetails(TripDayItem day) {
+    showDialog(
+      context: context,
+      builder: (ctx) => DayDetailDialog(
+        day: day,
+        tripTitle: _currentTrip.title,
+        onDayChanged: () {
+          _loadTripData();
+        },
+      ),
+    );
   }
 
-  void _openMaps(String location) {
-    if (location.isEmpty) return;
-    final encoded = Uri.encodeComponent(location);
-    final url = 'https://www.google.com/maps/search/?api=1&query=$encoded';
-    try {
-      if (Platform.isWindows) {
-        Process.run('explorer.exe', [url]);
-      } else {
-        Process.run('open', [url]);
-      }
-    } catch (_) {}
+  Future<void> _deleteDay(TripDayItem day) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Day'),
+        content: Text(
+            'Are you sure you want to delete "${day.title}" and all its events?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await ItineraryDatabase.instance.deleteDay(day.id);
+
+      _loadTripData();
+    }
   }
 
   void _showChangeBannerDialog() {
@@ -106,7 +214,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         currentBannerPath: _currentTrip.imagePath,
         onBannerSelected: (newPath) async {
           final updated = _currentTrip.copyWith(imagePath: newPath);
+
           await ItineraryDatabase.instance.updateItinerary(updated);
+
           setState(() {
             _currentTrip = updated;
           });
@@ -127,64 +237,6 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     ).then((_) => _loadTripData());
   }
 
-  void _showEventEditor({TripEventItem? eventToEdit}) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => EventEditorDialog(
-        itineraryId: _currentTrip.id,
-        eventToEdit: eventToEdit,
-        onSave: (savedEvent) async {
-          if (eventToEdit != null) {
-            await ItineraryDatabase.instance.updateEvent(savedEvent);
-          } else {
-            await ItineraryDatabase.instance.insertEvent(savedEvent);
-          }
-          _loadTripData();
-        },
-      ),
-    );
-  }
-
-  void _showDeleteEventDialog(TripEventItem event) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 24),
-            SizedBox(width: 8),
-            Text('Delete Event', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-          ],
-        ),
-        content: Text(
-          'Are you sure you want to delete "${event.title}" from this itinerary?',
-          style: const TextStyle(fontSize: 14, color: Color(0xFF334155)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await ItineraryDatabase.instance.deleteEvent(event.id);
-              _loadTripData();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('Delete Event', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildBannerImage(String path) {
     if (path.isEmpty) {
       return Container(
@@ -197,16 +249,27 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         ),
       );
     }
+
     if (path.startsWith('http://') || path.startsWith('https://')) {
-      return Image.network(path, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildFallbackBanner());
+      return Image.network(path,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildFallbackBanner());
     }
+
     if (path.startsWith('assets/')) {
-      return Image.asset(path, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildFallbackBanner());
+      return Image.asset(path,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildFallbackBanner());
     }
+
     final file = File(path);
+
     if (file.existsSync()) {
-      return Image.file(file, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildFallbackBanner());
+      return Image.file(file,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildFallbackBanner());
     }
+
     return _buildFallbackBanner();
   }
 
@@ -224,8 +287,6 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final allExpanded = _events.isNotEmpty && _expandedEventIds.length == _events.length;
-
     return Scaffold(
       backgroundColor: const Color(0xFFEEF2F7),
       body: _isLoading
@@ -239,20 +300,27 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 child: SmoothScroll(
                   controller: _scrollController,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 18),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // 1. Panoramic Hero Banner
+
                         RepaintBoundary(child: _buildHeroBanner()),
+
                         const SizedBox(height: 20),
 
                         // 2. Information and Documents Trigger Card
+
                         RepaintBoundary(child: _buildDocumentsTriggerCard()),
+
                         const SizedBox(height: 24),
 
                         // 3. Itinerary Day-by-Day Section
-                        _buildItinerarySection(allExpanded),
+
+                        _buildItinerarySection(),
+
                         const SizedBox(height: 60),
                       ],
                     ),
@@ -282,9 +350,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           fit: StackFit.expand,
           children: [
             // Background Image
+
             _buildBannerImage(_currentTrip.imagePath),
 
             // Vertical gradient for top/bottom contrast
+
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -301,6 +371,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
             ),
 
             // Horizontal subtle gradient for left alignment
+
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -317,6 +388,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
             ),
 
             // Top Bar: Back button on left, controls on right
+
             Positioned(
               top: 20,
               left: 24,
@@ -325,6 +397,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Back Button: "← My Trips"
+
                   Material(
                     color: Colors.black.withValues(alpha: 0.38),
                     borderRadius: BorderRadius.circular(30),
@@ -332,19 +405,25 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                       borderRadius: BorderRadius.circular(30),
                       onTap: () => Navigator.pop(context, true),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(30),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.25)),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.arrow_back_rounded, color: Colors.white, size: 16),
+                            Icon(Icons.arrow_back_rounded,
+                                color: Colors.white, size: 16),
                             SizedBox(width: 6),
                             Text(
                               'My Trips',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13),
                             ),
                           ],
                         ),
@@ -353,9 +432,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                   ),
 
                   // Right Controls: Change Banner, 3-dots
+
                   Row(
                     children: [
                       // Change Banner Button
+
                       Material(
                         color: Colors.black.withValues(alpha: 0.38),
                         borderRadius: BorderRadius.circular(30),
@@ -363,28 +444,36 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                           borderRadius: BorderRadius.circular(30),
                           onTap: _showChangeBannerDialog,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(30),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                              border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.25)),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.camera_alt_outlined, color: Colors.white, size: 15),
+                                Icon(Icons.camera_alt_outlined,
+                                    color: Colors.white, size: 15),
                                 SizedBox(width: 6),
                                 Text(
                                   'Change Banner',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12.5),
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12.5),
                                 ),
                               ],
                             ),
                           ),
                         ),
                       ),
+
                       const SizedBox(width: 8),
 
                       // Three Dots Menu
+
                       Material(
                         color: Colors.black.withValues(alpha: 0.38),
                         shape: const CircleBorder(),
@@ -392,7 +481,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                           data: Theme.of(context).copyWith(
                             popupMenuTheme: PopupMenuThemeData(
                               color: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
                           child: PopupMenuButton<String>(
@@ -403,9 +493,12 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                                border: Border.all(
+                                    color:
+                                        Colors.white.withValues(alpha: 0.25)),
                               ),
-                              child: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 18),
+                              child: const Icon(Icons.more_vert_rounded,
+                                  color: Colors.white, size: 18),
                             ),
                             onSelected: (val) {
                               if (val == 'banner') _showChangeBannerDialog();
@@ -415,9 +508,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                                 value: 'banner',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.image_outlined, size: 18, color: Color(0xFF334155)),
+                                    Icon(Icons.image_outlined,
+                                        size: 18, color: Color(0xFF334155)),
                                     SizedBox(width: 10),
-                                    Text('Change Banner', style: TextStyle(fontSize: 13)),
+                                    Text('Change Banner',
+                                        style: TextStyle(fontSize: 13)),
                                   ],
                                 ),
                               ),
@@ -432,6 +527,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
             ),
 
             // Bottom Content: Tagline, Title, Badges, Description, Quote
+
             Positioned(
               left: 32,
               bottom: 28,
@@ -440,12 +536,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   // Left details
+
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // Tagline
+
                         Text(
                           _currentTrip.effectiveTagline,
                           style: TextStyle(
@@ -455,9 +553,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                             letterSpacing: 2.2,
                           ),
                         ),
+
                         const SizedBox(height: 6),
 
                         // Title
+
                         Text(
                           _currentTrip.title,
                           style: const TextStyle(
@@ -468,68 +568,92 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                             letterSpacing: -0.8,
                             height: 1.05,
                             shadows: [
-                              Shadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 3)),
+                              Shadow(
+                                  color: Colors.black54,
+                                  blurRadius: 16,
+                                  offset: Offset(0, 3)),
                             ],
                           ),
                         ),
+
                         const SizedBox(height: 14),
 
                         // Badges Row
+
                         Wrap(
                           spacing: 10,
                           runSpacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             // Duration
+
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 5),
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.18),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                                border: Border.all(
+                                    color:
+                                        Colors.white.withValues(alpha: 0.25)),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.calendar_today_rounded, color: Colors.white, size: 13),
+                                  const Icon(Icons.calendar_today_rounded,
+                                      color: Colors.white, size: 13),
                                   const SizedBox(width: 6),
                                   Text(
                                     _currentTrip.duration,
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12),
                                   ),
                                 ],
                               ),
                             ),
 
                             // Date Range
+
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 5),
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.18),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                                border: Border.all(
+                                    color:
+                                        Colors.white.withValues(alpha: 0.25)),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.date_range_rounded, color: Colors.white, size: 13),
+                                  const Icon(Icons.date_range_rounded,
+                                      color: Colors.white, size: 13),
                                   const SizedBox(width: 6),
                                   Text(
                                     _currentTrip.dateRange,
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12),
                                   ),
                                 ],
                               ),
                             ),
                           ],
                         ),
+
                         const SizedBox(height: 12),
 
                         // Trip Description
+
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 850),
                           child: Text(
-                            RichDescriptionSyntax.stripTags(_currentTrip.effectiveDescription),
+                            RichDescriptionSyntax.stripTags(
+                                _currentTrip.effectiveDescription),
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.90),
                               fontSize: 13.5,
@@ -545,6 +669,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                   ),
 
                   // Signature Quote on the right
+
                   Padding(
                     padding: const EdgeInsets.only(left: 20),
                     child: Transform.rotate(
@@ -564,7 +689,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                               fontFamily: 'serif',
                               height: 1.08,
                               shadows: const [
-                                Shadow(color: Colors.black54, blurRadius: 10, offset: Offset(0, 2)),
+                                Shadow(
+                                    color: Colors.black54,
+                                    blurRadius: 10,
+                                    offset: Offset(0, 2)),
                               ],
                             ),
                           ),
@@ -605,6 +733,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
             child: Row(
               children: [
                 // Blue Square Icon
+
                 Container(
                   width: 46,
                   height: 46,
@@ -619,11 +748,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.description_rounded, color: Colors.white, size: 24),
+                  child: const Icon(Icons.description_rounded,
+                      color: Colors.white, size: 24),
                 ),
+
                 const SizedBox(width: 16),
 
                 // Text
+
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -641,14 +773,17 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                         _documents.isNotEmpty
                             ? '${_documents.length} document${_documents.length > 1 ? 's' : ''} available. All important information for your trip in one place.'
                             : 'All important information for your trip in one place.',
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                        style: const TextStyle(
+                            fontSize: 13, color: Color(0xFF64748B)),
                       ),
                     ],
                   ),
                 ),
 
                 // Chevron
-                const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Color(0xFF94A3B8)),
+
+                const Icon(Icons.arrow_forward_ios_rounded,
+                    size: 16, color: Color(0xFF94A3B8)),
               ],
             ),
           ),
@@ -657,7 +792,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     );
   }
 
-  Widget _buildItinerarySection(bool allExpanded) {
+  Widget _buildItinerarySection() {
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
@@ -676,6 +811,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Section Header
+
           Row(
             children: [
               Container(
@@ -685,7 +821,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                   color: const Color(0xFFE8F0FE),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.map_rounded, color: Color(0xFF2563EB), size: 22),
+                child: const Icon(Icons.calendar_month_rounded,
+                    color: Color(0xFF2563EB), size: 22),
               ),
               const SizedBox(width: 14),
               const Expanded(
@@ -694,54 +831,61 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                   children: [
                     Text(
                       'Itinerary',
-                      style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: Color(0xFF172554)),
+                      style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF172554)),
                     ),
                     Text(
-                      'Your day-by-day plan. Expand each event for more details.',
+                      'Your day-by-day plan. Manage days and events below.',
                       style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                     ),
                   ],
                 ),
               ),
-              if (_events.isNotEmpty)
-                OutlinedButton.icon(
-                  onPressed: _toggleExpandAll,
-                  icon: Icon(
-                    allExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                    size: 18,
-                    color: const Color(0xFF334155),
-                  ),
-                  label: Text(
-                    allExpanded ? 'Collapse All' : 'Expand All',
-                    style: const TextStyle(color: Color(0xFF334155), fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    side: BorderSide.none,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              if (_days.isNotEmpty)
+                ElevatedButton.icon(
+                  onPressed: () => _showAddDayDialog(),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add Day',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    elevation: 0,
                   ),
                 ),
             ],
           ),
+
           const SizedBox(height: 24),
 
-          // Events list
-          if (_events.isEmpty)
+          // Days list
+
+          if (_days.isEmpty)
             Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Column(
                   children: [
-                    const Icon(Icons.calendar_month_outlined, size: 44, color: Color(0xFF94A3B8)),
+                    const Icon(Icons.calendar_month_outlined,
+                        size: 44, color: Color(0xFF94A3B8)),
                     const SizedBox(height: 10),
                     const Text(
-                      'No events added yet',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                      'No days added yet',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF334155)),
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      'Plan flights, accommodation, dining, and scenic activities below.',
+                      'Plan your trip day by day. Add your first day below.',
                       style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                     ),
                   ],
@@ -753,392 +897,270 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               buildDefaultDragHandles: false,
-              itemCount: _events.length,
+              itemCount: _days.length,
               onReorder: (oldIndex, newIndex) async {
                 setState(() {
                   if (oldIndex < newIndex) newIndex -= 1;
-                  final item = _events.removeAt(oldIndex);
-                  _events.insert(newIndex, item);
+
+                  final item = _days.removeAt(oldIndex);
+
+                  _days.insert(newIndex, item);
                 });
-                await ItineraryDatabase.instance.reorderEvents(_events);
+
+                await ItineraryDatabase.instance.reorderDays(_days);
               },
               itemBuilder: (context, index) {
-                final event = _events[index];
-                final isExpanded = _expandedEventIds.contains(event.id);
+                final day = _days[index];
+
                 return RepaintBoundary(
-                  key: ValueKey(event.id),
-                  child: _buildEventCard(event, index, isExpanded),
+                  key: ValueKey(day.id),
+                  child: _buildDayCard(day, index),
                 );
               },
             ),
 
           const SizedBox(height: 16),
 
-          // "+ Add Event" Dashed Card
-          _buildAddEventDashedCard(),
+          // "+ Add Day" Dashed Card
+
+          _buildAddDayDashedCard(),
         ],
       ),
     );
   }
 
-  Widget _buildEventCard(TripEventItem event, int index, bool isExpanded) {
-    final relatedDocs = _documents.where((d) => d.eventId == event.id).toList();
+  Widget _buildDayCard(TripDayItem day, int index) {
+    final eventCount =
+        _dayEventCounts[day.id] ?? _dayEventCounts['day_${day.dayNumber}'] ?? 0;
+
+    final subtitle = eventCount > 0
+        ? (day.date != null && day.date!.isNotEmpty
+            ? '${day.date} · $eventCount ${eventCount == 1 ? "event" : "events"} planned'
+            : '$eventCount ${eventCount == 1 ? "event" : "events"} planned')
+        : (day.date != null && day.date!.isNotEmpty
+            ? '${day.date} · No events yet'
+            : 'No events yet');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isExpanded ? const Color(0xFFCBD7EA) : const Color(0xFFE6ECF4)),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: isExpanded ? const Color(0xFF172554).withValues(alpha: 0.08) : const Color(0xFF101828).withValues(alpha: 0.03),
-            blurRadius: isExpanded ? 16 : 4,
-            offset: const Offset(0, 3),
+            color: const Color(0xFF101828).withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Collapsed Header Row
-          Padding(
-            padding: const EdgeInsets.all(16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => _openDayDetails(day),
+          hoverColor: const Color(0xFFF8FAFC),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: Row(
               children: [
-                // 6-dot Drag Handle
+                // 6-dot drag handle
+
                 ReorderableDragStartListener(
                   index: index,
                   child: Container(
                     padding: const EdgeInsets.all(6),
-                    child: const Icon(Icons.drag_indicator_rounded, color: Color(0xFF94A3B8), size: 20),
+                    child: const Icon(Icons.drag_indicator_rounded,
+                        color: Color(0xFF94A3B8), size: 20),
                   ),
                 ),
-                const SizedBox(width: 8),
 
-                // Thumbnail Image
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    width: 78,
-                    height: 52,
-                    color: const Color(0xFFF1F5F9),
-                    child: event.coverImage.isNotEmpty
-                        ? (event.coverImage.startsWith('assets/')
-                            ? Image.asset(event.coverImage, fit: BoxFit.cover)
-                            : Image.file(File(event.coverImage), fit: BoxFit.cover))
-                        : const Icon(Icons.landscape_rounded, color: Color(0xFF94A3B8), size: 26),
+                const SizedBox(width: 10),
+
+                // Blue Badge for Day
+
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      'D${day.dayNumber}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 14),
 
-                // Main Info
+                const SizedBox(width: 16),
+
+                // Main Info: Day Title and Subtitle
+
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        event.title,
+                        day.title.toUpperCase(),
                         style: const TextStyle(
-                          fontSize: 16.5,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF172554),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: 0.5,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
-                      Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(event.eventDate, style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
-                          if (event.startTime != null && event.endTime != null) ...[
-                            const Text(' • ', style: TextStyle(color: Color(0xFF94A3B8))),
-                            Text('${event.startTime} - ${event.endTime}', style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
-                          ],
-                          if (event.duration.isNotEmpty) ...[
-                            const Text(' • ', style: TextStyle(color: Color(0xFF94A3B8))),
-                            Text(event.duration, style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
-                          ],
-                          if (event.location.isNotEmpty) ...[
-                            const Text(' • ', style: TextStyle(color: Color(0xFF94A3B8))),
-                            InkWell(
-                              onTap: () => _openMaps(event.location),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF2563EB)),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    event.location,
-                                    style: const TextStyle(
-                                      fontSize: 12.5,
-                                      color: Color(0xFF2563EB),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 2),
-                                  const Icon(Icons.open_in_new_rounded, size: 11, color: Color(0xFF2563EB)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                            fontSize: 13, color: Color(0xFF64748B)),
                       ),
                     ],
                   ),
                 ),
 
-                // Actions: Edit, Delete, Chevron
+                // Edit Button
+
                 IconButton(
-                  tooltip: 'Edit Event',
-                  onPressed: () => _showEventEditor(eventToEdit: event),
-                  icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF475569)),
+                  tooltip: 'Edit Day',
+                  onPressed: () => _showAddDayDialog(dayToEdit: day),
+                  icon: const Icon(Icons.edit_outlined,
+                      size: 19, color: Color(0xFF64748B)),
                   splashRadius: 18,
                 ),
-                IconButton(
-                  tooltip: 'Delete Event',
-                  onPressed: () => _showDeleteEventDialog(event),
-                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFF94A3B8)),
+
+                // 3-dot Menu
+
+                PopupMenuButton<String>(
+                  tooltip: 'Options',
+                  icon: const Icon(Icons.more_horiz_rounded,
+                      size: 20, color: Color(0xFF64748B)),
                   splashRadius: 18,
+                  onSelected: (val) {
+                    if (val == 'edit') _showAddDayDialog(dayToEdit: day);
+
+                    if (val == 'delete') _deleteDay(day);
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit_outlined,
+                              size: 16, color: Color(0xFF2563EB)),
+                          SizedBox(width: 8),
+                          Text('Edit Day', style: TextStyle(fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline_rounded,
+                              size: 16, color: Color(0xFFDC2626)),
+                          SizedBox(width: 8),
+                          Text('Delete Day',
+                              style: TextStyle(
+                                  fontSize: 13, color: Color(0xFFDC2626))),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: isExpanded ? 'Collapse' : 'Expand Details',
-                  onPressed: () => _toggleExpand(event.id),
-                  icon: Icon(
-                    isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                    color: const Color(0xFF475569),
-                    size: 22,
-                  ),
-                  splashRadius: 18,
-                ),
+
+                const SizedBox(width: 4),
+
+                // Chevron indicating card can be clicked to open details
+
+                const Icon(Icons.chevron_right_rounded,
+                    size: 22, color: Color(0xFF94A3B8)),
               ],
             ),
           ),
-
-          // Expanded Drawer
-          if (isExpanded) ...[
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Description
-                  if (event.description.isNotEmpty) ...[
-                    Row(
-                      children: const [
-                        Icon(Icons.notes_rounded, size: 16, color: Color(0xFF2563EB)),
-                        SizedBox(width: 6),
-                        Text(
-                          'Description',
-                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Color(0xFF172554)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    RichDescriptionView(
-                      description: event.description,
-                      style: const TextStyle(fontSize: 13.5, color: Color(0xFF334155), height: 1.5),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // 3-Column Layout: Photos, Notes, Documents
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Column 1: Photos
-                      Expanded(
-                        flex: 4,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.photo_outlined, size: 15, color: Color(0xFF2563EB)),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Photos (${event.photos.length})',
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF172554)),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            if (event.photos.isEmpty)
-                              const Text('No photos added.', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)))
-                            else
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: event.photos.map((p) {
-                                  return ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.file(File(p), width: 80, height: 55, fit: BoxFit.cover),
-                                  );
-                                }).toList(),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // Column 2: Additional Notes
-                      Expanded(
-                        flex: 4,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: const [
-                                Icon(Icons.check_circle_outline_rounded, size: 15, color: Color(0xFF2563EB)),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Additional Notes',
-                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF172554)),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            if (event.notes.isEmpty)
-                              const Text('No tips or notes recorded.', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)))
-                            else
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: event.notes.map((n) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('• ', style: TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold)),
-                                        Expanded(
-                                          child: Text(n, style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155))),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // Column 3: Event Documents
-                      Expanded(
-                        flex: 4,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.folder_outlined, size: 15, color: Color(0xFF2563EB)),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Documents (${relatedDocs.length})',
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF172554)),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            if (relatedDocs.isEmpty)
-                              const Text('No attached documents.', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)))
-                            else
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: relatedDocs.map((doc) {
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 6),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF8FAFC),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.description_rounded, size: 14, color: Color(0xFF2563EB)),
-                                        const SizedBox(width: 6),
-                                        Expanded(
-                                          child: Text(
-                                            doc.title,
-                                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildAddEventDashedCard() {
-    return InkWell(
-      onTap: () => _showEventEditor(),
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFBFDFF),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: const Color(0xFFA9C3F2),
-            width: 1.5,
-          ),
+  Widget _buildAddDayDashedCard() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBFDFF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFA9C3F2),
+          width: 1.5,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: const Color(0xFF2563EB),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF2563EB).withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 14),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => _showAddDayDialog(),
+          hoverColor: const Color(0xFFF8FAFC),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  '+ Add Event',
-                  style: TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF172554),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
+                  child: const Icon(Icons.add_rounded,
+                      color: Colors.white, size: 22),
                 ),
-                Text(
-                  'Append a new activity, destination, or milestone to this trip\'s itinerary.',
-                  style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+                const SizedBox(width: 14),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '+ Add Day',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF172554),
+                      ),
+                    ),
+                    Text(
+                      'Append a new day to this trip\'s itinerary.',
+                      style:
+                          TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
