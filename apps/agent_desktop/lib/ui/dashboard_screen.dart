@@ -533,37 +533,7 @@ class _ItineraryCardState extends State<ItineraryCard> {
                   ),
                 ),
 
-                // 3. Top-Left Badge (1, 2, 3)
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    width: 25,
-                    height: 25,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0066FF),
-                      borderRadius: BorderRadius.circular(6),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0066FF).withValues(alpha: 0.4),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      '${widget.item.id}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // 4. Top-Right Three-Dot Options Menu
+                // 3. Top-Right Three-Dot Options Menu
                 Positioned(
                   top: 10,
                   right: 10,
