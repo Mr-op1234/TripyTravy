@@ -881,6 +881,17 @@ class AddEventDialog extends StatefulWidget {
   final TripEventItem? eventToEdit;
   final VoidCallback onEventSaved;
 
+  // Supported image file formats
+  static const List<String> supportedImageExtensions = [
+    'png',
+    'jpg',
+    'jpeg',
+    'webp',
+    'gif',
+    'bmp',
+    'heic',
+  ];
+
   const AddEventDialog({
     super.key,
     required this.itineraryId,
@@ -950,6 +961,17 @@ class _AddEventDialogState extends State<AddEventDialog> {
     return 0;
   }
 
+  // Supported image file formats
+  static const List<String> supportedImageExtensions = [
+    'png',
+    'jpg',
+    'jpeg',
+    'webp',
+    'gif',
+    'bmp',
+    'heic',
+  ];
+
   // Pick Document Files (PDF, Word, TXT, etc.)
   Future<void> _pickDocuments() async {
     try {
@@ -971,24 +993,30 @@ class _AddEventDialogState extends State<AddEventDialog> {
     }
   }
 
-  // Pick Image Files (PNG, JPG, WEBP - distinct from documents!)
+  // Pick Image Files ONLY (PNG, JPG, WEBP, GIF - distinct from documents!)
   Future<void> _pickPhotos() async {
     try {
       final files = await FilePicker.pickFiles(
-        dialogTitle: 'Select Photos to Add (PNG, JPG)',
+        type: FileType.custom,
+        allowedExtensions: supportedImageExtensions,
+        dialogTitle: 'Select Images to Add (PNG, JPG, WEBP, GIF)',
       );
       if (files.isNotEmpty) {
         setState(() {
           for (final f in files) {
             final p = f.path;
-            if (p != null && p.isNotEmpty && !_photosList.contains(p)) {
-              _photosList.add(p);
+            if (p != null && p.isNotEmpty) {
+              final ext = p.split('.').last.toLowerCase();
+              if (supportedImageExtensions.contains(ext) &&
+                  !_photosList.contains(p)) {
+                _photosList.add(p);
+              }
             }
           }
         });
       }
     } catch (e) {
-      setState(() => _errorMessage = 'Could not select photos: $e');
+      setState(() => _errorMessage = 'Could not select images: $e');
     }
   }
 
@@ -1440,7 +1468,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                       fontWeight: FontWeight.bold,
                                       color: Color(0xFF1E293B))),
                               SizedBox(height: 2),
-                              Text('PNG / JPG / WEBP',
+                              Text('PNG, JPG, WEBP, GIF',
                                   style: TextStyle(
                                       fontSize: 12, color: Color(0xFF64748B))),
                             ],
@@ -1455,7 +1483,8 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                 icon: const Icon(
                                     Icons.add_photo_alternate_rounded,
                                     size: 18),
-                                label: const Text('Add Photos (PNG, JPG)'),
+                                label: const Text(
+                                    'Add Images (PNG, JPG, WEBP, GIF)'),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: const Color(0xFF2563EB),
                                   side: const BorderSide(

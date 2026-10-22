@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -285,19 +286,49 @@ String sanitizeDescription(String input) {
   return s;
 }
 
+/// Supported Highlight Colors:
+/// 1. Yellow (Default): #FEF08A with #854D0E text
+/// 2. Light Red: #FECACA with #991B1B text
+/// 3. Navy Blue: #1E3A8A with #FFFFFF text
+enum HighlightColor {
+  yellow('yellow', Color(0xFFFEF08A), Color(0xFF854D0E), 'Yellow'),
+  lightRed('red', Color(0xFFFECACA), Color(0xFF991B1B), 'Light Red'),
+  navyBlue('navy', Color(0xFF1E3A8A), Color(0xFFFFFFFF), 'Navy Blue');
+
+  final String id;
+  final Color bg;
+  final Color fg;
+  final String label;
+  const HighlightColor(this.id, this.bg, this.fg, this.label);
+
+  static HighlightColor fromId(String id) {
+    final lower = id.toLowerCase();
+    if (lower == 'red' || lower == 'lightred' || lower == 'fecaca') {
+      return HighlightColor.lightRed;
+    }
+    if (lower == 'navy' ||
+        lower == 'blue' ||
+        lower == 'navyblue' ||
+        lower == '1e3a8a') {
+      return HighlightColor.navyBlue;
+    }
+    return HighlightColor.yellow;
+  }
+}
+
 /// Character-level formatting attributes.
 class CharFormatting {
   bool bold;
   bool italic;
   bool underline;
-  bool highlight;
+  HighlightColor? highlight;
   String? linkUrl;
 
   CharFormatting({
     this.bold = false,
     this.italic = false,
     this.underline = false,
-    this.highlight = false,
+    this.highlight,
     this.linkUrl,
   });
 
@@ -366,13 +397,30 @@ List<FormattedSegment> _tokenizeFormattedString(
     // 1. Highlight: <mark>...</mark> or ==...==
     if (matched.toLowerCase().startsWith('<mark')) {
       final inner = m.group(2) ?? '';
-      final nextFormat = currentFormat.clone()..highlight = true;
+      HighlightColor color = HighlightColor.yellow;
+      final lower = matched.toLowerCase();
+      if (lower.contains('red') || lower.contains('fecaca')) {
+        color = HighlightColor.lightRed;
+      } else if (lower.contains('navy') ||
+          lower.contains('blue') ||
+          lower.contains('1e3a8a')) {
+        color = HighlightColor.navyBlue;
+      }
+      final nextFormat = currentFormat.clone()..highlight = color;
       segments.addAll(_tokenizeFormattedString(inner, nextFormat));
     } else if (matched.startsWith('==') &&
         matched.endsWith('==') &&
         matched.length >= 4) {
-      final inner = m.group(3) ?? matched.substring(2, matched.length - 2);
-      final nextFormat = currentFormat.clone()..highlight = true;
+      var inner = m.group(3) ?? matched.substring(2, matched.length - 2);
+      HighlightColor color = HighlightColor.yellow;
+      if (inner.startsWith('red:')) {
+        color = HighlightColor.lightRed;
+        inner = inner.substring(4);
+      } else if (inner.startsWith('navy:')) {
+        color = HighlightColor.navyBlue;
+        inner = inner.substring(5);
+      }
+      final nextFormat = currentFormat.clone()..highlight = color;
       segments.addAll(_tokenizeFormattedString(inner, nextFormat));
     }
     // 2. Bold: <b>...</b>, <strong>...</strong>, or **...**
@@ -453,7 +501,7 @@ FormattedParseResult parseFormattedString(String input) {
 
 /// Rich text editing controller that uses a true span-based model:
 /// - Text in the TextField is 100% PURE TEXT with ZERO delimiters (** == <u>).
-/// - Styles (bold, italic, underline, highlight, link) are stored per character.
+/// - Styles (bold, italic, underline, highlight with 3 colors, link) are stored per character.
 /// - When typing, characters take the active style.
 /// - Backspacing deletes the actual character—NO delimiters or WhatsApp marks ever appear!
 /// - Serializes cleanly into Markdown and HTML upon request.
@@ -633,8 +681,70 @@ class RichTextEditingController extends TextEditingController {
     _toggleAttribute(sel, (f) => f.underline, (f, v) => f.underline = v);
   }
 
-  void toggleHighlight(TextSelection sel) {
-    _toggleAttribute(sel, (f) => f.highlight, (f, v) => f.highlight = v);
+  void toggleHighlight(TextSelection sel,
+      [HighlightColor color = HighlightColor.yellow]) {
+    if (!sel.isValid || sel.isCollapsed) {
+      if (_activeTypingFormat.highlight == color) {
+        _activeTypingFormat.highlight = null;
+      } else {
+        _activeTypingFormat.highlight = color;
+      }
+      _hasActiveOverride = true;
+      notifyListeners();
+      return;
+    }
+
+    final start = min(sel.start, sel.end);
+    final end = max(sel.start, sel.end);
+    if (start < 0 || end > _charStyles.length || start == end) {
+      if (_activeTypingFormat.highlight == color) {
+        _activeTypingFormat.highlight = null;
+      } else {
+        _activeTypingFormat.highlight = color;
+      }
+      _hasActiveOverride = true;
+      notifyListeners();
+      return;
+    }
+
+    bool allHaveThisColor = true;
+    for (int i = start; i < end; i++) {
+      if (_charStyles[i].highlight != color) {
+        allHaveThisColor = false;
+        break;
+      }
+    }
+
+    final newHighlight = allHaveThisColor ? null : color;
+    for (int i = start; i < end; i++) {
+      _charStyles[i].highlight = newHighlight;
+    }
+    _activeTypingFormat.highlight = newHighlight;
+    notifyListeners();
+  }
+
+  void applyHighlightColor(TextSelection sel, HighlightColor color) {
+    if (!sel.isValid || sel.isCollapsed) {
+      _activeTypingFormat.highlight = color;
+      _hasActiveOverride = true;
+      notifyListeners();
+      return;
+    }
+
+    final start = min(sel.start, sel.end);
+    final end = max(sel.start, sel.end);
+    if (start < 0 || end > _charStyles.length || start == end) {
+      _activeTypingFormat.highlight = color;
+      _hasActiveOverride = true;
+      notifyListeners();
+      return;
+    }
+
+    for (int i = start; i < end; i++) {
+      _charStyles[i].highlight = color;
+    }
+    _activeTypingFormat.highlight = color;
+    notifyListeners();
   }
 
   void _toggleAttribute(
@@ -690,8 +800,26 @@ class RichTextEditingController extends TextEditingController {
 
   bool get isSelectionUnderline => isUnderlineActive(selection);
 
-  bool isHighlightActive(TextSelection sel) =>
-      _isAttributeActive(sel, (f) => f.highlight);
+  bool isHighlightActive(TextSelection sel, [HighlightColor? color]) {
+    if (!sel.isValid || sel.isCollapsed) {
+      if (color == null) return _activeTypingFormat.highlight != null;
+      return _activeTypingFormat.highlight == color;
+    }
+    final start = min(sel.start, sel.end);
+    final end = max(sel.start, sel.end);
+    if (start < 0 || end > _charStyles.length || start == end) {
+      if (color == null) return _activeTypingFormat.highlight != null;
+      return _activeTypingFormat.highlight == color;
+    }
+    for (int i = start; i < end; i++) {
+      if (color == null) {
+        if (_charStyles[i].highlight == null) return false;
+      } else {
+        if (_charStyles[i].highlight != color) return false;
+      }
+    }
+    return true;
+  }
 
   bool get isSelectionHighlight => isHighlightActive(selection);
 
@@ -775,7 +903,7 @@ class RichTextEditingController extends TextEditingController {
       if (!f.bold &&
           !f.italic &&
           !f.underline &&
-          !f.highlight &&
+          f.highlight == null &&
           f.linkUrl == null) {
         buf.write(rawChunk);
       } else {
@@ -801,8 +929,14 @@ class RichTextEditingController extends TextEditingController {
           if (f.bold) {
             formatted = '**$formatted**';
           }
-          if (f.highlight) {
-            formatted = '==$formatted==';
+          if (f.highlight != null) {
+            if (f.highlight == HighlightColor.lightRed) {
+              formatted = '==red:$formatted==';
+            } else if (f.highlight == HighlightColor.navyBlue) {
+              formatted = '==navy:$formatted==';
+            } else {
+              formatted = '==$formatted==';
+            }
           }
           buf.write('$leadingWs$formatted$trailingWs');
         }
@@ -859,10 +993,11 @@ class RichTextEditingController extends TextEditingController {
               f.linkUrl != null ? linkColor : const Color(0xFF1E293B),
         );
       }
-      if (f.highlight) {
+      if (f.highlight != null) {
+        final hc = f.highlight!;
         chunkStyle = chunkStyle.copyWith(
-          backgroundColor: highlightColor,
-          color: highlightTextColor,
+          backgroundColor: hc.bg,
+          color: hc.fg,
           fontWeight: f.bold ? FontWeight.bold : FontWeight.w600,
         );
       }
@@ -892,6 +1027,7 @@ class RichDescriptionSyntax {
     return text
         .replaceAll(RegExp(r'<mark[^>]*>', caseSensitive: false), '')
         .replaceAll(RegExp(r'</mark>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'==((red|navy):)?', caseSensitive: false), '')
         .replaceAll('==', '')
         .replaceAll(RegExp(r'</?b>', caseSensitive: false), '')
         .replaceAll(RegExp(r'</?strong>', caseSensitive: false), '')
@@ -916,12 +1052,12 @@ class RichDescriptionSyntax {
     if (line.isEmpty) return [TextSpan(text: '', style: baseStyle)];
 
     final tokenRegex = RegExp(
-      r'(<mark[^>]*>.*?</mark>|==[^=\n]+==|'
+      r'(?:<mark[^>]*>.*?</mark>|==[^=\n]+==|'
       r'<b>.*?</b>|<strong>.*?</strong>|\*\*[^\*\n]+\*\*|'
       r'<i>.*?</i>|<em>.*?</em>|(?<!\*)\*[^\*\n]+\*(?!\*)|'
       r'<u>.*?</u>|'
-      r'\[([^\]\n]+)\]\(([^)\n]*)\)|'
-      r'<a\s+href="([^"]*)">(.*?)</a>|'
+      r'\[[^\]\n]+\]\([^)\n]*\)|'
+      r'<a\s+href="[^"]*">.*?</a>|'
       r'https?://[^\s<>"]+)',
       caseSensitive: false,
       dotAll: true,
@@ -940,15 +1076,24 @@ class RichDescriptionSyntax {
 
       final matchedStr = match.group(0)!;
 
-      // Highlight
+      // Highlight: Yellow, Light Red, Navy Blue
       if (matchedStr.toLowerCase().startsWith('<mark')) {
         final inner = matchedStr.substring(
             matchedStr.indexOf('>') + 1, matchedStr.length - 7);
+        HighlightColor color = HighlightColor.yellow;
+        final lower = matchedStr.toLowerCase();
+        if (lower.contains('red') || lower.contains('fecaca')) {
+          color = HighlightColor.lightRed;
+        } else if (lower.contains('navy') ||
+            lower.contains('blue') ||
+            lower.contains('1e3a8a')) {
+          color = HighlightColor.navyBlue;
+        }
         spans.addAll(parseInlineSpans(
           inner,
           baseStyle.copyWith(
-            backgroundColor: highlightColor,
-            color: highlightTextColor,
+            backgroundColor: color.bg,
+            color: color.fg,
             fontWeight: FontWeight.w600,
           ),
           onOpenUrl: onOpenUrl,
@@ -956,12 +1101,20 @@ class RichDescriptionSyntax {
       } else if (matchedStr.startsWith('==') &&
           matchedStr.endsWith('==') &&
           matchedStr.length >= 4) {
-        final inner = matchedStr.substring(2, matchedStr.length - 2);
+        var inner = matchedStr.substring(2, matchedStr.length - 2);
+        HighlightColor color = HighlightColor.yellow;
+        if (inner.startsWith('red:')) {
+          color = HighlightColor.lightRed;
+          inner = inner.substring(4);
+        } else if (inner.startsWith('navy:')) {
+          color = HighlightColor.navyBlue;
+          inner = inner.substring(5);
+        }
         spans.addAll(parseInlineSpans(
           inner,
           baseStyle.copyWith(
-            backgroundColor: highlightColor,
-            color: highlightTextColor,
+            backgroundColor: color.bg,
+            color: color.fg,
             fontWeight: FontWeight.w600,
           ),
           onOpenUrl: onOpenUrl,
@@ -1000,7 +1153,7 @@ class RichDescriptionSyntax {
           baseStyle.copyWith(fontStyle: FontStyle.italic),
           onOpenUrl: onOpenUrl,
         ));
-      } else if (matchedStr.toLowerCase().startsWith('<em>')) {
+      } else if (matchedStr.toLowerCase().startsWith('em')) {
         final inner = matchedStr.substring(4, matchedStr.length - 5);
         spans.addAll(parseInlineSpans(
           inner,
@@ -1031,14 +1184,23 @@ class RichDescriptionSyntax {
       }
       // Markdown Link [label](url)
       else if (matchedStr.startsWith('[')) {
-        final label = match.group(2) ?? '';
-        final url = match.group(3) ?? '';
-        spans.add(_buildClickableLinkSpan(label, url, baseStyle, onOpenUrl));
+        final closeBracket = matchedStr.indexOf('](');
+        if (closeBracket != -1 && matchedStr.endsWith(')')) {
+          final label = matchedStr.substring(1, closeBracket);
+          final url =
+              matchedStr.substring(closeBracket + 2, matchedStr.length - 1);
+          spans.add(_buildClickableLinkSpan(label, url, baseStyle, onOpenUrl));
+        } else {
+          spans.add(TextSpan(text: matchedStr, style: baseStyle));
+        }
       }
       // HTML Link <a href="...">...</a>
       else if (matchedStr.toLowerCase().startsWith('<a')) {
-        final url = match.group(4) ?? '';
-        final label = match.group(5) ?? url;
+        final hrefMatch = RegExp(r'<a\s+href="([^"]*)">(.*?)</a>',
+                caseSensitive: false)
+            .firstMatch(matchedStr);
+        final url = hrefMatch?.group(1) ?? '';
+        final label = hrefMatch?.group(2) ?? url;
         spans.add(_buildClickableLinkSpan(label, url, baseStyle, onOpenUrl));
       }
       // Raw URL
@@ -1098,7 +1260,7 @@ class RichDescriptionSyntax {
 }
 
 /// A read-only presentation widget that parses rich descriptions (bold, italics,
-/// yellow highlight #FEF08A, blue clickable links #2563EB, underline, visual tables,
+/// highlights with Yellow/Light Red/Navy Blue, blue clickable links #2563EB, underline, visual tables,
 /// bullet/numbered lists, and alignment) and renders them cleanly with ZERO raw tags visible.
 class RichDescriptionView extends StatelessWidget {
   final String description;
@@ -1452,7 +1614,7 @@ class EditorHistoryState {
 /// Rich Description Editor box with toolbar matching TravChad / Lucide design,
 /// featuring:
 /// - True Span-based WYSIWYG editing: pure clean text without raw delimiters.
-/// - Bold, Italic, Underline (Ctrl+U), Highlight (Ctrl+H), and Link (Ctrl+K).
+/// - Bold, Italic, Underline (Ctrl+U), Highlight (Ctrl+H) with Yellow/Light Red/Navy Blue palette on hover, and Link (Ctrl+K).
 /// - 4 Alignments: Left, Center, Right, Justify.
 /// - Bullet and Numbered lists with Enter auto-continuation.
 /// - Interactive Visual Table Card with row/column operations.
@@ -1486,6 +1648,11 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
   bool _isPerformingUndoRedo = false;
   bool _isSyncing = false;
   late final RichTextEditingController _effectiveController;
+
+  HighlightColor _activeHighlightColor = HighlightColor.yellow;
+  final LayerLink _highlightLayerLink = LayerLink();
+  OverlayEntry? _highlightOverlay;
+  Timer? _hidePaletteTimer;
 
   TextAlign _textAlign = TextAlign.left;
   EditableTableData? _tableData;
@@ -1569,6 +1736,9 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
 
   @override
   void dispose() {
+    _hidePaletteTimer?.cancel();
+    _highlightOverlay?.remove();
+    _highlightOverlay = null;
     _effectiveController.removeListener(_onTextChanged);
     _effectiveController.removeListener(_syncToWidgetController);
     widget.controller.removeListener(_syncFromWidgetController);
@@ -1699,19 +1869,149 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
     setState(() {});
   }
 
-  void _toggleHighlight() {
+  // --- Hover Palette Logic for Highlight ---
+  void _showHighlightPalette() {
+    _hidePaletteTimer?.cancel();
+    if (_highlightOverlay != null) return;
+    final overlay = Overlay.maybeOf(context);
+    if (overlay == null) return;
+
+    _highlightOverlay = OverlayEntry(
+      builder: (ctx) => Positioned(
+        width: 140,
+        child: CompositedTransformFollower(
+          link: _highlightLayerLink,
+          showWhenUnlinked: false,
+          offset: const Offset(-8, 34),
+          child: MouseRegion(
+            onEnter: (_) => _hidePaletteTimer?.cancel(),
+            onExit: (_) => _scheduleHideHighlightPalette(),
+            child: Material(
+              elevation: 8,
+              shadowColor: Colors.black26,
+              borderRadius: BorderRadius.circular(10),
+              color: Colors.white,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border:
+                      Border.all(color: const Color(0xFFCBD5E1), width: 1.1),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildHighlightColorSwatch(HighlightColor.yellow),
+                    _buildHighlightColorSwatch(HighlightColor.lightRed),
+                    _buildHighlightColorSwatch(HighlightColor.navyBlue),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(_highlightOverlay!);
+  }
+
+  void _scheduleHideHighlightPalette() {
+    _hidePaletteTimer?.cancel();
+    _hidePaletteTimer = Timer(const Duration(milliseconds: 220), () {
+      _hideHighlightPalette();
+    });
+  }
+
+  void _hideHighlightPalette() {
+    _hidePaletteTimer?.cancel();
+    _highlightOverlay?.remove();
+    _highlightOverlay = null;
+  }
+
+  Widget _buildHighlightColorSwatch(HighlightColor hc) {
+    final isSelected = _activeHighlightColor == hc;
+    return Tooltip(
+      message: hc.label,
+      child: InkWell(
+        onTap: () {
+          _activeHighlightColor = hc;
+          _applyHighlightColor(hc);
+          _hideHighlightPalette();
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 24,
+          height: 24,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          decoration: BoxDecoration(
+            color: hc.bg,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFF2563EB)
+                  : (hc == HighlightColor.navyBlue
+                      ? const Color(0xFF1E3A8A)
+                      : const Color(0xFF94A3B8)),
+              width: isSelected ? 2.2 : 1.2,
+            ),
+            boxShadow: [
+              if (isSelected)
+                BoxShadow(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.35),
+                  blurRadius: 4,
+                  spreadRadius: 1,
+                ),
+            ],
+          ),
+          child: isSelected
+              ? Center(
+                  child: Icon(
+                    Icons.check,
+                    size: 13,
+                    color: hc == HighlightColor.navyBlue
+                        ? Colors.white
+                        : const Color(0xFF1E293B),
+                  ),
+                )
+              : null,
+        ),
+      ),
+    );
+  }
+
+  void _applyHighlightColor(HighlightColor color) {
     var sel = _effectiveController.selection;
     if ((!sel.isValid || sel.isCollapsed) &&
         widget.controller.selection.isValid &&
         !widget.controller.selection.isCollapsed) {
       sel = widget.controller.selection;
     }
-    _effectiveController.toggleHighlight(sel);
+    _effectiveController.applyHighlightColor(sel, color);
     _syncToWidgetController();
     _pushHistory();
     _focusNode.requestFocus();
     setState(() {});
   }
+
+  void _onHighlightButtonPressed() {
+    // If not clicked on a specific color, by default select yellow
+    final colorToUse = _activeHighlightColor;
+    var sel = _effectiveController.selection;
+    if ((!sel.isValid || sel.isCollapsed) &&
+        widget.controller.selection.isValid &&
+        !widget.controller.selection.isCollapsed) {
+      sel = widget.controller.selection;
+    }
+    _effectiveController.toggleHighlight(sel, colorToUse);
+    _syncToWidgetController();
+    _pushHistory();
+    _focusNode.requestFocus();
+    setState(() {});
+  }
+
+  void _toggleHighlight() => _onHighlightButtonPressed();
 
   // Auto-continue bullet or numbered lists on Enter
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -2422,7 +2722,7 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
               ),
               child: Row(
                 children: [
-                  // Group 1: B, I, U, PenLine, Link
+                  // Group 1: B, I, U, PenLine (with Hover Palette), Link
                   _buildIconButton(
                     text: 'B',
                     tooltip: 'Bold (Ctrl+B)',
@@ -2441,14 +2741,47 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
                     active: _effectiveController.isSelectionUnderline,
                     onPressed: _toggleUnderline,
                   ),
-                  _buildIconButton(
-                    customWidget: const CustomPaint(
-                      size: Size(16, 16),
-                      painter: PenLinePainter(color: Color(0xFF475569)),
+                  CompositedTransformTarget(
+                    link: _highlightLayerLink,
+                    child: MouseRegion(
+                      onEnter: (_) => _showHighlightPalette(),
+                      onExit: (_) => _scheduleHideHighlightPalette(),
+                      child: _buildIconButton(
+                        customWidget: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CustomPaint(
+                              size: const Size(14, 14),
+                              painter: PenLinePainter(
+                                color: _effectiveController.isSelectionHighlight
+                                    ? const Color(0xFF2563EB)
+                                    : const Color(0xFF475569),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              width: 14,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: _activeHighlightColor.bg,
+                                borderRadius: BorderRadius.circular(1.5),
+                                border: Border.all(
+                                  color: _activeHighlightColor ==
+                                          HighlightColor.navyBlue
+                                      ? const Color(0xFF1E3A8A)
+                                      : const Color(0xFFCBD5E1),
+                                  width: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        tooltip: 'Highlight (Ctrl+H) - Hover for colors',
+                        active: _effectiveController.isSelectionHighlight,
+                        onPressed: _onHighlightButtonPressed,
+                      ),
                     ),
-                    tooltip: 'Highlight Text (Ctrl+H)',
-                    active: _effectiveController.isSelectionHighlight,
-                    onPressed: _toggleHighlight,
                   ),
                   _buildIconButton(
                     icon: Icons.link_rounded,

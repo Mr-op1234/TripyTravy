@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agent_desktop/ui/widgets/rich_description_editor.dart';
+import 'package:agent_desktop/ui/dialogs/day_detail_dialog.dart';
 
 void main() {
   group('RichDescriptionSyntax & Editor Tests', () {
@@ -300,6 +301,127 @@ Trip Schedule:
       await tester.tap(find.text('U'));
       await tester.pumpAndSettle();
       expect(controller.text, contains('<u>Centered Headline</u>'));
+    });
+
+    test('HighlightColor enum properties and styles', () {
+      expect(HighlightColor.yellow.bg, equals(const Color(0xFFFEF08A)));
+      expect(HighlightColor.yellow.fg, equals(const Color(0xFF854D0E)));
+      expect(HighlightColor.yellow.id, equals('yellow'));
+
+      expect(HighlightColor.lightRed.bg, equals(const Color(0xFFFECACA)));
+      expect(HighlightColor.lightRed.fg, equals(const Color(0xFF991B1B)));
+      expect(HighlightColor.lightRed.id, equals('red'));
+
+      expect(HighlightColor.navyBlue.bg, equals(const Color(0xFF1E3A8A)));
+      expect(HighlightColor.navyBlue.fg, equals(const Color(0xFFFFFFFF)));
+      expect(HighlightColor.navyBlue.id, equals('navy'));
+    });
+
+    test('RichTextEditingController correctly parses and serializes multiple highlight colors', () {
+      const input = 'Standard ==yellow note== and ==red:urgent alert== plus ==navy:info pill==';
+      final controller = RichTextEditingController(text: input);
+
+      expect(controller.text, equals('Standard yellow note and urgent alert plus info pill'));
+
+      // Check text spans have correct background and foreground styling
+      final span = controller.buildTextSpan(
+        context: null as dynamic,
+        style: const TextStyle(fontSize: 14, color: Colors.black),
+        withComposing: false,
+      );
+
+      final children = span.children!;
+      bool foundYellow = false;
+      bool foundRed = false;
+      bool foundNavy = false;
+
+      for (final child in children) {
+        if (child is TextSpan) {
+          if (child.text == 'yellow note') {
+            expect(child.style?.backgroundColor, equals(const Color(0xFFFEF08A)));
+            expect(child.style?.color, equals(const Color(0xFF854D0E)));
+            foundYellow = true;
+          } else if (child.text == 'urgent alert') {
+            expect(child.style?.backgroundColor, equals(const Color(0xFFFECACA)));
+            expect(child.style?.color, equals(const Color(0xFF991B1B)));
+            foundRed = true;
+          } else if (child.text == 'info pill') {
+            expect(child.style?.backgroundColor, equals(const Color(0xFF1E3A8A)));
+            expect(child.style?.color, equals(const Color(0xFFFFFFFF)));
+            foundNavy = true;
+          }
+        }
+      }
+
+      expect(foundYellow, isTrue);
+      expect(foundRed, isTrue);
+      expect(foundNavy, isTrue);
+
+      // Verify serialization preserves color specifiers
+      final serialized = controller.serialize();
+      expect(serialized, contains('==yellow note=='));
+      expect(serialized, contains('==red:urgent alert=='));
+      expect(serialized, contains('==navy:info pill=='));
+    });
+
+    test('RichTextEditingController applies and toggles specific highlight colors programmatically', () {
+      final controller = RichTextEditingController(text: 'Hello World Flutter');
+
+      // Select 'World' (offset 6 to 11) and apply navy highlight
+      controller.selection = const TextSelection(baseOffset: 6, extentOffset: 11);
+      controller.applyHighlightColor(controller.selection, HighlightColor.navyBlue);
+
+      expect(controller.serialize(), equals('Hello ==navy:World== Flutter'));
+
+      // Now toggle off highlight
+      controller.toggleHighlight(controller.selection, HighlightColor.navyBlue);
+      expect(controller.serialize(), equals('Hello World Flutter'));
+
+      // Apply light red highlight
+      controller.applyHighlightColor(controller.selection, HighlightColor.lightRed);
+      expect(controller.serialize(), equals('Hello ==red:World== Flutter'));
+    });
+
+    testWidgets('RichDescriptionView renders multiple highlight colors properly', (tester) async {
+      const formatted = 'Notice: ==red:High Priority== and ==navy:Deep Sea Diving== and ==Simple Note==';
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: RichDescriptionView(description: formatted),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('==red:'), findsNothing);
+      expect(find.textContaining('==navy:'), findsNothing);
+      expect(find.textContaining('==Simple'), findsNothing);
+      expect(find.textContaining('High Priority'), findsWidgets);
+      expect(find.textContaining('Deep Sea Diving'), findsWidgets);
+      expect(find.textContaining('Simple Note'), findsWidgets);
+    });
+
+    test('AddEventDialog supportedImageExtensions strictly limits uploads to image formats', () {
+      final exts = AddEventDialog.supportedImageExtensions;
+
+      // Must support standard image formats and GIFs
+      expect(exts, contains('png'));
+      expect(exts, contains('jpg'));
+      expect(exts, contains('jpeg'));
+      expect(exts, contains('webp'));
+      expect(exts, contains('gif'));
+      expect(exts, contains('bmp'));
+      expect(exts, contains('heic'));
+
+      // Must NOT include non-image document formats
+      expect(exts.contains('pdf'), isFalse);
+      expect(exts.contains('doc'), isFalse);
+      expect(exts.contains('docx'), isFalse);
+      expect(exts.contains('xls'), isFalse);
+      expect(exts.contains('xlsx'), isFalse);
+      expect(exts.contains('txt'), isFalse);
+      expect(exts.contains('zip'), isFalse);
     });
   });
 }

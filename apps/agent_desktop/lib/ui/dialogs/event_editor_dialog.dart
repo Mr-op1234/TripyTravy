@@ -137,7 +137,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     try {
       final files = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'heic'],
       );
       if (files.isNotEmpty && files.first.path != null) {
         final saved = await ItineraryDatabase.saveEventPhotoToAppStorage(files.first.path!);
@@ -150,7 +150,7 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
     try {
       final files = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'heic'],
       );
       if (files.isNotEmpty) {
         for (final f in files) {

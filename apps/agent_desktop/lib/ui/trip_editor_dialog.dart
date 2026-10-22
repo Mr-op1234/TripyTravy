@@ -83,7 +83,7 @@ class _TripEditorDialogState extends State<TripEditorDialog> {
     try {
       final files = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'],
         dialogTitle: 'Select Trip Banner Image',
       );
 

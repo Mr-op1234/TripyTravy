@@ -51,7 +51,7 @@ class _ChangeBannerDialogState extends State<ChangeBannerDialog>
     try {
       final files = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'],
         dialogTitle: 'Select Banner Image',
       );
       if (files.isNotEmpty && files.first.path != null) {
