@@ -137,80 +137,15 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
   }
 
   Widget _buildRichDescription(String rawText, {String? mapUrl}) {
-    String fullText = rawText.trim();
-    if (mapUrl != null && mapUrl.isNotEmpty && !fullText.contains(mapUrl)) {
-      if (fullText.isNotEmpty) {
-        fullText = '$fullText\n\nhere is link to the place: $mapUrl';
-      } else {
-        fullText = 'here is link to the place: $mapUrl';
-      }
-    }
-
-    final urlRegex = RegExp(r'(https?://[^\s]+)');
-    final matches = urlRegex.allMatches(fullText).toList();
-
-    if (matches.isEmpty) {
-      return Text(
-        fullText,
-        style: const TextStyle(
-          fontSize: 14.5,
-          color: Color(0xFF334155),
-          height: 1.55,
-        ),
-      );
-    }
-
-    final spans = <InlineSpan>[];
-    int currentIndex = 0;
-
-    for (final match in matches) {
-      if (match.start > currentIndex) {
-        spans.add(TextSpan(
-          text: fullText.substring(currentIndex, match.start),
-          style: const TextStyle(
-            fontSize: 14.5,
-            color: Color(0xFF334155),
-            height: 1.55,
-          ),
-        ));
-      }
-
-      final url = fullText.substring(match.start, match.end);
-      spans.add(WidgetSpan(
-        alignment: PlaceholderAlignment.baseline,
-        baseline: TextBaseline.alphabetic,
-        child: InkWell(
-          onTap: () => _openFile(url),
-          mouseCursor: SystemMouseCursors.click,
-          borderRadius: BorderRadius.circular(4),
-          child: Text(
-            url,
-            style: const TextStyle(
-              fontSize: 14.5,
-              color: Color(0xFF2563EB),
-              decoration: TextDecoration.underline,
-              decorationColor: Color(0xFF2563EB),
-              height: 1.55,
-            ),
-          ),
-        ),
-      ));
-      currentIndex = match.end;
-    }
-
-    if (currentIndex < fullText.length) {
-      spans.add(TextSpan(
-        text: fullText.substring(currentIndex),
-        style: const TextStyle(
-          fontSize: 14.5,
-          color: Color(0xFF334155),
-          height: 1.55,
-        ),
-      ));
-    }
-
-    return Text.rich(
-      TextSpan(children: spans),
+    return RichDescriptionView(
+      description: rawText,
+      mapUrl: mapUrl,
+      onOpenUrl: _openFile,
+      style: const TextStyle(
+        fontSize: 14.5,
+        color: Color(0xFF334155),
+        height: 1.55,
+      ),
     );
   }
 

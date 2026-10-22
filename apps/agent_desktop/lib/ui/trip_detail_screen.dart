@@ -5,6 +5,7 @@ import 'dialogs/change_banner_dialog.dart';
 import 'dialogs/documents_dialog.dart';
 import 'dialogs/event_editor_dialog.dart';
 import 'widgets/smooth_scroll.dart';
+import 'widgets/rich_description_editor.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final DestinationItem item;
@@ -528,7 +529,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 850),
                           child: Text(
-                            _currentTrip.effectiveDescription,
+                            RichDescriptionSyntax.stripTags(_currentTrip.effectiveDescription),
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.90),
                               fontSize: 13.5,
@@ -936,8 +937,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      event.description,
+                    RichDescriptionView(
+                      description: event.description,
                       style: const TextStyle(fontSize: 13.5, color: Color(0xFF334155), height: 1.5),
                     ),
                     const SizedBox(height: 16),
