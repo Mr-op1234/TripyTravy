@@ -586,12 +586,12 @@ void main() {
 
       // Verify Itinerary section
       expect(find.text('Itinerary'), findsOneWidget);
-      expect(find.text('+ Add Day'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Add Day'), findsOneWidget);
 
-      // Tap + Add Day and verify AddDayDialog
-      await tester.tap(find.text('+ Add Day'));
+      // Tap Add Day button and verify AddDayDialog
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Add Day'));
       await tester.pumpAndSettle();
-      expect(find.text('Add Day'), findsOneWidget);
+      expect(find.text('Add Day'), findsWidgets);
       expect(find.text('Day Name *'), findsOneWidget);
 
       // Close dialog via Cancel

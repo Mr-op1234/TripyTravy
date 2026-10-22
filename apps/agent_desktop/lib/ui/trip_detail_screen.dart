@@ -843,8 +843,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                   ],
                 ),
               ),
-              if (_days.isNotEmpty)
-                ElevatedButton.icon(
+              ElevatedButton.icon(
                   onPressed: () => _showAddDayDialog(),
                   icon: const Icon(Icons.add_rounded, size: 18),
                   label: const Text('Add Day',
@@ -885,7 +884,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      'Plan your trip day by day. Add your first day below.',
+                      'Plan your trip day by day. Click "Add Day" above to get started.',
                       style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                     ),
                   ],
@@ -919,12 +918,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               },
             ),
 
-          const SizedBox(height: 16),
-
-          // "+ Add Day" Dashed Card
-
-          _buildAddDayDashedCard(),
-        ],
+                  ],
       ),
     );
   }
@@ -1100,69 +1094,4 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     );
   }
 
-  Widget _buildAddDayDashedCard() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFFFBFDFF),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFA9C3F2),
-          width: 1.5,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () => _showAddDayDialog(),
-          hoverColor: const Color(0xFFF8FAFC),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2563EB),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF2563EB).withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.add_rounded,
-                      color: Colors.white, size: 22),
-                ),
-                const SizedBox(width: 14),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '+ Add Day',
-                      style: TextStyle(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF172554),
-                      ),
-                    ),
-                    Text(
-                      'Append a new day to this trip\'s itinerary.',
-                      style:
-                          TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
