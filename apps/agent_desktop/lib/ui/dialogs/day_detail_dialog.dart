@@ -779,12 +779,19 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
         statusText = const Color(0xFFDC2626);
       }
 
+      final isArrival = event.subDetail == 'Arrival';
       IconData routeIcon = Icons.directions_transit_rounded;
-      if (event.subCategory == 'Flight') routeIcon = Icons.flight_takeoff_rounded;
-      if (event.subCategory == 'Train') routeIcon = Icons.train_rounded;
-      if (event.subCategory == 'Bus') routeIcon = Icons.directions_bus_rounded;
-      if (event.subCategory == 'Car/Taxi' || event.subCategory == 'Car' || event.subCategory == 'Taxi') routeIcon = Icons.directions_car_rounded;
-      if (event.subCategory.contains('Cruise') || event.subCategory.contains('Ferry')) routeIcon = Icons.directions_boat_rounded;
+      if (event.subCategory == 'Flight') {
+        routeIcon = isArrival ? Icons.flight_land_rounded : Icons.flight_takeoff_rounded;
+      } else if (event.subCategory == 'Train') {
+        routeIcon = Icons.train_rounded;
+      } else if (event.subCategory == 'Bus') {
+        routeIcon = Icons.directions_bus_rounded;
+      } else if (event.subCategory == 'Car/Taxi' || event.subCategory == 'Car' || event.subCategory == 'Taxi') {
+        routeIcon = Icons.directions_car_rounded;
+      } else if (event.subCategory.contains('Cruise') || event.subCategory.contains('Ferry')) {
+        routeIcon = Icons.directions_boat_rounded;
+      }
 
       final vehicleNo = data['vehicleNo'] as String? ?? '';
 
@@ -1968,23 +1975,70 @@ class _AddEventDialogState extends State<AddEventDialog> {
     final isTrain = sub == 'Train';
     final isCarTaxi = sub == 'Car/Taxi' || sub == 'Car' || sub == 'Taxi';
     final isBus = sub == 'Bus';
+    final isArrival = _selectedSubDetail == 'Arrival';
 
     String dateLabel = 'DATE';
     String timeLabel = 'START TIME';
+    String fromLabel = 'FROM';
     String fromHint = 'Search station, port, address...';
     IconData fromIcon = Icons.place_outlined;
 
     if (isFlight) {
-      dateLabel = 'DEPARTURE';
-      timeLabel = 'DEP. TIME';
-      fromHint = 'Airport code or city (e.g. FRA)';
-      fromIcon = Icons.flight_takeoff_rounded;
+      if (isArrival) {
+        dateLabel = 'ARRIVAL';
+        timeLabel = 'ARR. TIME';
+        fromLabel = 'DESTINATION';
+        fromHint = 'Arrival airport code or city (e.g. ZRH)';
+        fromIcon = Icons.flight_land_rounded;
+      } else {
+        dateLabel = 'DEPARTURE';
+        timeLabel = 'DEP. TIME';
+        fromLabel = 'ORIGIN';
+        fromHint = 'Airport code or city (e.g. FRA)';
+        fromIcon = Icons.flight_takeoff_rounded;
+      }
     } else if (isTrain) {
-      dateLabel = 'DEPARTURE';
-      timeLabel = 'DEP. TIME';
+      if (isArrival) {
+        dateLabel = 'ARRIVAL';
+        timeLabel = 'ARR. TIME';
+        fromLabel = 'DESTINATION';
+        fromHint = 'Arrival station / city';
+      } else {
+        dateLabel = 'DEPARTURE';
+        timeLabel = 'DEP. TIME';
+        fromLabel = 'FROM';
+        fromHint = 'Departure station / city';
+      }
     } else if (isCarTaxi) {
-      dateLabel = 'PICKUP';
-      timeLabel = 'PICKUP TIME';
+      if (isArrival) {
+        dateLabel = 'DROPOFF';
+        timeLabel = 'DROPOFF TIME';
+        fromLabel = 'DROPOFF AT';
+        fromHint = 'Dropoff address or location';
+      } else {
+        dateLabel = 'PICKUP';
+        timeLabel = 'PICKUP TIME';
+        fromLabel = 'PICKUP FROM';
+        fromHint = 'Pickup address or location';
+      }
+    } else if (isBus) {
+      if (isArrival) {
+        dateLabel = 'ARRIVAL';
+        timeLabel = 'ARR. TIME';
+        fromLabel = 'DESTINATION';
+        fromHint = 'Arrival bus stop or terminal';
+      } else {
+        dateLabel = 'DEPARTURE';
+        timeLabel = 'DEP. TIME';
+        fromLabel = 'FROM';
+        fromHint = 'Departure bus station or stop';
+      }
+    } else {
+      if (isArrival) {
+        dateLabel = 'ARRIVAL';
+        timeLabel = 'ARR. TIME';
+        fromLabel = 'DESTINATION';
+      }
     }
 
     return Container(
@@ -2001,13 +2055,21 @@ class _AddEventDialogState extends State<AddEventDialog> {
           Row(
             children: [
               Icon(
-                isFlight ? Icons.flight_takeoff_rounded : (isTrain ? Icons.train_rounded : (isCarTaxi ? Icons.directions_car_rounded : (isBus ? Icons.directions_bus_rounded : Icons.directions_transit_rounded))),
+                isFlight
+                    ? (isArrival ? Icons.flight_land_rounded : Icons.flight_takeoff_rounded)
+                    : (isTrain
+                        ? Icons.train_rounded
+                        : (isCarTaxi
+                            ? Icons.directions_car_rounded
+                            : (isBus ? Icons.directions_bus_rounded : Icons.directions_transit_rounded))),
                 color: const Color(0xFF0284C7),
                 size: 20,
               ),
               const SizedBox(width: 8),
               Text(
-                isFlight ? 'ROUTE & FLIGHT' : 'ROUTE',
+                isFlight
+                    ? (isArrival ? 'ROUTE & ARRIVAL FLIGHT' : 'ROUTE & DEPARTURE FLIGHT')
+                    : 'ROUTE',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -2024,14 +2086,14 @@ class _AddEventDialogState extends State<AddEventDialog> {
           ),
           const SizedBox(height: 16),
 
-          // FROM row
+          // FROM / DESTINATION row
           Row(
             children: [
-              const SizedBox(
+              SizedBox(
                 width: 90,
                 child: Text(
-                  'FROM',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                  fromLabel,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
                 ),
               ),
               Expanded(
