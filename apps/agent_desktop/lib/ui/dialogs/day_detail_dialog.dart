@@ -1402,6 +1402,15 @@ class _AddEventDialogState extends State<AddEventDialog> {
   final FocusNode _dialogFocusNode = FocusNode();
 
   Future<void> _pasteImageFromClipboard() async {
+    // If the user currently has focus on an editable text input, let normal text paste happen!
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus != null && primaryFocus.context != null) {
+      final isEditable = primaryFocus.context!.findAncestorWidgetOfExactType<EditableText>() != null;
+      if (isEditable) {
+        return;
+      }
+    }
+
     try {
       final imageBytes = await Pasteboard.image;
       if (imageBytes != null && imageBytes.isNotEmpty) {
