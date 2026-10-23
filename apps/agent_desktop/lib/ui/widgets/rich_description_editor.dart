@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pasteboard/pasteboard.dart';
 
 /// Lucide-style PenLine painter for highlight/pen button.
 class PenLinePainter extends CustomPainter {
@@ -2669,6 +2670,78 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
     );
   }
 
+  Widget _buildEditorContextMenu(
+      BuildContext context, EditableTextState editableTextState) {
+    final List<ContextMenuButtonItem> buttonItems = [];
+    for (final item in editableTextState.contextMenuButtonItems) {
+      if (item.type == ContextMenuButtonType.paste) {
+        buttonItems.add(
+          ContextMenuButtonItem(
+            type: ContextMenuButtonType.paste,
+            label: 'Paste',
+            onPressed: () => _executeEditorPaste(editableTextState),
+          ),
+        );
+      } else {
+        buttonItems.add(item);
+      }
+    }
+    final hasPaste =
+        buttonItems.any((item) => item.type == ContextMenuButtonType.paste);
+    if (!hasPaste) {
+      buttonItems.add(
+        ContextMenuButtonItem(
+          type: ContextMenuButtonType.paste,
+          label: 'Paste',
+          onPressed: () => _executeEditorPaste(editableTextState),
+        ),
+      );
+    }
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: buttonItems,
+    );
+  }
+
+  Future<void> _executeEditorPaste(EditableTextState editableTextState) async {
+    final oldText = editableTextState.textEditingValue.text;
+    editableTextState.pasteText(SelectionChangedCause.toolbar);
+    if (editableTextState.textEditingValue.text == oldText) {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final textToPaste = data?.text ?? await Pasteboard.text;
+      if (textToPaste != null && textToPaste.isNotEmpty) {
+        final value = editableTextState.textEditingValue;
+        final selection = value.selection;
+        if (selection.isValid &&
+            selection.start >= 0 &&
+            selection.end >= 0 &&
+            selection.start <= value.text.length &&
+            selection.end <= value.text.length) {
+          final newText =
+              value.text.replaceRange(selection.start, selection.end, textToPaste);
+          editableTextState.userUpdateTextEditingValue(
+            TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(
+                  offset: selection.start + textToPaste.length),
+            ),
+            SelectionChangedCause.toolbar,
+          );
+        } else {
+          final newText = value.text + textToPaste;
+          editableTextState.userUpdateTextEditingValue(
+            TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: newText.length),
+            ),
+            SelectionChangedCause.toolbar,
+          );
+        }
+      }
+    }
+    editableTextState.hideToolbar();
+  }
+
   @override
   Widget build(BuildContext context) {
     return CallbackShortcuts(
@@ -2900,6 +2973,7 @@ class _RichDescriptionEditorState extends State<RichDescriptionEditor> {
                       controller: _effectiveController,
                       focusNode: _focusNode,
                       textAlign: _textAlign,
+                      contextMenuBuilder: _buildEditorContextMenu,
                       minLines: widget.isFullscreen ? 15 : widget.minLines,
                       maxLines: widget.isFullscreen ? null : widget.maxLines,
                       style: const TextStyle(

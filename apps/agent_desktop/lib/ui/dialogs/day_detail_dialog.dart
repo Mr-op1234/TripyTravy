@@ -1401,16 +1401,79 @@ class AddEventDialog extends StatefulWidget {
 class _AddEventDialogState extends State<AddEventDialog> {
   final FocusNode _dialogFocusNode = FocusNode();
 
-  Future<void> _pasteImageFromClipboard() async {
-    // If the user currently has focus on an editable text input, let normal text paste happen!
-    final primaryFocus = FocusManager.instance.primaryFocus;
-    if (primaryFocus != null && primaryFocus.context != null) {
-      final isEditable = primaryFocus.context!.findAncestorWidgetOfExactType<EditableText>() != null;
-      if (isEditable) {
-        return;
+  Widget _buildDesktopContextMenu(
+      BuildContext context, EditableTextState editableTextState) {
+    final List<ContextMenuButtonItem> buttonItems = [];
+    for (final item in editableTextState.contextMenuButtonItems) {
+      if (item.type == ContextMenuButtonType.paste) {
+        buttonItems.add(
+          ContextMenuButtonItem(
+            type: ContextMenuButtonType.paste,
+            label: 'Paste',
+            onPressed: () => _executePaste(editableTextState),
+          ),
+        );
+      } else {
+        buttonItems.add(item);
       }
     }
+    final hasPaste =
+        buttonItems.any((item) => item.type == ContextMenuButtonType.paste);
+    if (!hasPaste) {
+      buttonItems.add(
+        ContextMenuButtonItem(
+          type: ContextMenuButtonType.paste,
+          label: 'Paste',
+          onPressed: () => _executePaste(editableTextState),
+        ),
+      );
+    }
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: buttonItems,
+    );
+  }
 
+  Future<void> _executePaste(EditableTextState editableTextState) async {
+    final oldText = editableTextState.textEditingValue.text;
+    editableTextState.pasteText(SelectionChangedCause.toolbar);
+    if (editableTextState.textEditingValue.text == oldText) {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final textToPaste = data?.text ?? await Pasteboard.text;
+      if (textToPaste != null && textToPaste.isNotEmpty) {
+        final value = editableTextState.textEditingValue;
+        final selection = value.selection;
+        if (selection.isValid &&
+            selection.start >= 0 &&
+            selection.end >= 0 &&
+            selection.start <= value.text.length &&
+            selection.end <= value.text.length) {
+          final newText =
+              value.text.replaceRange(selection.start, selection.end, textToPaste);
+          editableTextState.userUpdateTextEditingValue(
+            TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(
+                  offset: selection.start + textToPaste.length),
+            ),
+            SelectionChangedCause.toolbar,
+          );
+        } else {
+          final newText = value.text + textToPaste;
+          editableTextState.userUpdateTextEditingValue(
+            TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: newText.length),
+            ),
+            SelectionChangedCause.toolbar,
+          );
+        }
+      }
+    }
+    editableTextState.hideToolbar();
+  }
+
+  Future<void> _pasteImageFromClipboard() async {
     try {
       final imageBytes = await Pasteboard.image;
       if (imageBytes != null && imageBytes.isNotEmpty) {
@@ -1466,6 +1529,16 @@ class _AddEventDialogState extends State<AddEventDialog> {
           );
           return;
         }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No image found in clipboard to paste'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     } catch (_) {}
   }
@@ -1649,15 +1722,22 @@ class _AddEventDialogState extends State<AddEventDialog> {
     }
   }
 
+  String _lastParsedMapsText = '';
+
   void _onMapsFocusChanged() {
     // When focus is lost (clicked outside the input box), trigger parsing of all lines parallelly
     if (!_mapsFocusNode.hasFocus) {
-      _parseAllLocationLinks();
+      final currentText = _mapsUrlController.text.trim();
+      if (currentText.isNotEmpty && currentText != _lastParsedMapsText) {
+        _lastParsedMapsText = currentText;
+        _parseAllLocationLinks();
+      }
     }
   }
 
   Future<void> _parseAllLocationLinks() async {
     final text = _mapsUrlController.text;
+    _lastParsedMapsText = text.trim();
     final lines = text
         .split('\n')
         .map((l) => l.trim())
@@ -1665,10 +1745,12 @@ class _AddEventDialogState extends State<AddEventDialog> {
         .toList();
 
     if (lines.isEmpty) {
-      setState(() {
-        _fetchedLocations.clear();
-        _locationStatusMessage = null;
-      });
+      if (_fetchedLocations.isNotEmpty) {
+        setState(() {
+          _fetchedLocations.clear();
+          _locationStatusMessage = null;
+        });
+      }
       return;
     }
 
@@ -2227,6 +2309,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
               Expanded(
                 child: TextField(
                   controller: _transFromController,
+                  contextMenuBuilder: _buildDesktopContextMenu,
                   decoration: InputDecoration(
                     prefixIcon: Icon(fromIcon, size: 18, color: const Color(0xFF64748B)),
                     hintText: fromHint,
@@ -2264,6 +2347,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                     const SizedBox(height: 6),
                     TextField(
                       controller: _transDepDateController,
+                      contextMenuBuilder: _buildDesktopContextMenu,
                       decoration: InputDecoration(
                         hintText: 'dd-mm-yyyy',
                         suffixIcon: const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF64748B)),
@@ -2287,6 +2371,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                     const SizedBox(height: 6),
                     TextField(
                       controller: _transDepTimeController,
+                      contextMenuBuilder: _buildDesktopContextMenu,
                       decoration: InputDecoration(
                         hintText: '2:30 PM',
                         suffixIcon: const Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF64748B)),
@@ -2318,6 +2403,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                       const SizedBox(height: 6),
                       TextField(
                         controller: _transTrainNoController,
+                        contextMenuBuilder: _buildDesktopContextMenu,
                         decoration: InputDecoration(
                           hintText: 'ICE 123',
                           filled: true,
@@ -2341,6 +2427,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                       const SizedBox(height: 6),
                       TextField(
                         controller: _transPlatformController,
+                        contextMenuBuilder: _buildDesktopContextMenu,
                         decoration: InputDecoration(
                           hintText: '12',
                           filled: true,
@@ -2364,6 +2451,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                       const SizedBox(height: 6),
                       TextField(
                         controller: _transSeatController,
+                        contextMenuBuilder: _buildDesktopContextMenu,
                         decoration: InputDecoration(
                           hintText: '42A',
                           filled: true,
@@ -2396,6 +2484,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                 Expanded(
                   child: TextField(
                     controller: _transVehicleNoController,
+                    contextMenuBuilder: _buildDesktopContextMenu,
                     decoration: InputDecoration(
                       hintText: isBus ? 'e.g. Bus #42 or Plate 82-ABC' : 'e.g. Plate # or Taxi ID (e.g. NY-7890)',
                       filled: true,
@@ -2425,6 +2514,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                       const SizedBox(height: 6),
                       TextField(
                         controller: _transAirlineController,
+                        contextMenuBuilder: _buildDesktopContextMenu,
                         decoration: InputDecoration(
                           hintText: 'Lufthansa',
                           filled: true,
@@ -2448,6 +2538,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                       const SizedBox(height: 6),
                       TextField(
                         controller: _transFlightNoController,
+                        contextMenuBuilder: _buildDesktopContextMenu,
                         decoration: InputDecoration(
                           hintText: 'LH 123',
                           filled: true,
@@ -2471,6 +2562,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                       const SizedBox(height: 6),
                       TextField(
                         controller: _transSeatController,
+                        contextMenuBuilder: _buildDesktopContextMenu,
                         decoration: InputDecoration(
                           hintText: '12A',
                           filled: true,
@@ -2510,6 +2602,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                         Expanded(
                           child: TextField(
                             controller: ctrl,
+                            contextMenuBuilder: _buildDesktopContextMenu,
                             decoration: InputDecoration(
                               hintText: isFlight ? 'Layover airport code (e.g. MUC)' : 'Intermediate station / stop',
                               filled: true,
@@ -2585,6 +2678,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                     const SizedBox(height: 6),
                     TextField(
                       controller: _transBookingCodeController,
+                      contextMenuBuilder: _buildDesktopContextMenu,
                       decoration: InputDecoration(
                         hintText: 'e.g. ABC12345',
                         filled: true,
@@ -2880,22 +2974,31 @@ class _AddEventDialogState extends State<AddEventDialog> {
     final totalAttachmentsCount =
         _existingAttachments.length + _attachedFiles.length;
 
-    return CallbackShortcuts(
-      bindings: <ShortcutActivator, VoidCallback>{
-        const SingleActivator(LogicalKeyboardKey.keyV, control: true): () {
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            HardwareKeyboard.instance.isControlPressed &&
+            event.logicalKey == LogicalKeyboardKey.keyV) {
+          final primary = FocusManager.instance.primaryFocus;
+          final isEditable = primary?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
+          if (isEditable) {
+            // Focus is in an active editable text box: let Flutter perform native text paste!
+            return KeyEventResult.ignored;
+          }
+          // Focus is outside any text input: paste clipboard image into Photos & Images!
           _pasteImageFromClipboard();
-        },
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
       },
-      child: Focus(
-        focusNode: _dialogFocusNode,
-        autofocus: true,
-        child: Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-          child: Container(
-        width: 820,
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+        child: Container(
+      width: 820,
         constraints:
             BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.90),
         child: Column(
@@ -3006,6 +3109,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                         Expanded(
                           child: TextField(
                             controller: _titleController,
+                            contextMenuBuilder: _buildDesktopContextMenu,
                             decoration: InputDecoration(
                               hintText:
                                   'e.g. Flight to Zurich, Lake Boat Tour, or Dinner at Lindenhof',
@@ -3103,9 +3207,10 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                 minLines: 2,
                                 maxLines: 5,
                                 keyboardType: TextInputType.multiline,
+                                contextMenuBuilder: _buildDesktopContextMenu,
                                 decoration: InputDecoration(
                                   hintText:
-                                      'Paste Google Maps link(s) line-by-line.\nClick outside to parse all locations in parallel.',
+                                      'Paste Google Maps link(s) line-by-line.\nClick outside or click Parse icon to extract all locations in parallel.',
                                   hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
                                   prefixIcon: const Padding(
                                     padding: EdgeInsets.only(bottom: 24),
@@ -3114,15 +3219,37 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                         color: Color(0xFF2563EB),
                                         size: 20),
                                   ),
-                                  suffixIcon: _isFetchingLocation
-                                      ? const Padding(
-                                          padding: EdgeInsets.all(12),
+                                  suffixIcon: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.paste_rounded, size: 18, color: Color(0xFF2563EB)),
+                                        tooltip: 'Paste links from clipboard',
+                                        onPressed: () async {
+                                          final data = await Clipboard.getData(Clipboard.kTextPlain);
+                                          final text = data?.text ?? await Pasteboard.text;
+                                          if (text != null && text.isNotEmpty) {
+                                            final current = _mapsUrlController.text;
+                                            if (current.isEmpty) {
+                                              _mapsUrlController.text = text;
+                                            } else {
+                                              _mapsUrlController.text = '$current\n$text';
+                                            }
+                                            _parseAllLocationLinks();
+                                          }
+                                        },
+                                      ),
+                                      if (_isFetchingLocation)
+                                        const Padding(
+                                          padding: EdgeInsets.all(10),
                                           child: SizedBox(
                                               width: 16,
                                               height: 16,
                                               child: CircularProgressIndicator(
-                                                  strokeWidth: 2)))
-                                      : null,
+                                                  strokeWidth: 2)),
+                                        ),
+                                    ],
+                                  ),
                                   contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 14, vertical: 12),
                                   border: OutlineInputBorder(
@@ -3287,22 +3414,42 @@ class _AddEventDialogState extends State<AddEventDialog> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              OutlinedButton.icon(
-                                onPressed: _pickPhotos,
-                                icon: const Icon(
-                                    Icons.add_photo_alternate_rounded,
-                                    size: 18),
-                                label: const Text(
-                                    'Add Images (PNG, JPG, WEBP, GIF)'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF2563EB),
-                                  side: const BorderSide(
-                                      color: Color(0xFF2563EB)),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(9)),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
-                                ),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: _pickPhotos,
+                                    icon: const Icon(
+                                        Icons.add_photo_alternate_rounded,
+                                        size: 18),
+                                    label: const Text(
+                                        'Add Images (PNG, JPG, WEBP, GIF)'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFF2563EB),
+                                      side: const BorderSide(
+                                          color: Color(0xFF2563EB)),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(9)),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 10),
+                                    ),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: _pasteImageFromClipboard,
+                                    icon: const Icon(Icons.paste_rounded, size: 18),
+                                    label: const Text('Paste Image (Ctrl+V)'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFF0F172A),
+                                      side: const BorderSide(
+                                          color: Color(0xFFCBD5E1)),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(9)),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 10),
+                                    ),
+                                  ),
+                                ],
                               ),
                               if (_photosList.isNotEmpty) ...[
                                 const SizedBox(height: 14),
@@ -3503,7 +3650,6 @@ class _AddEventDialogState extends State<AddEventDialog> {
         ),
       ),
     ),
-      ),
     );
   }
 
