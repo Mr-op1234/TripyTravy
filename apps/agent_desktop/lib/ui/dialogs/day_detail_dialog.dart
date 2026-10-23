@@ -484,6 +484,97 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
     );
   }
 
+  Widget _buildEventIconBadge(TripEventItem event) {
+    Color bg = const Color(0xFF2563EB);
+    IconData icon = Icons.event_note_rounded;
+
+    if (event.category == 'Lodging') {
+      bg = const Color(0xFF059669);
+      icon = Icons.hotel_rounded;
+    } else if (event.category == 'Transportation') {
+      bg = const Color(0xFF0284C7);
+      icon = event.subCategory == 'Flight'
+          ? Icons.flight_rounded
+          : (event.subCategory == 'Train'
+              ? Icons.train_rounded
+              : Icons.directions_car_rounded);
+    } else if (event.category == 'Info') {
+      bg = const Color(0xFF4F46E5);
+      icon = Icons.info_outline_rounded;
+    } else {
+      bg = const Color(0xFF2563EB);
+      icon = Icons.event_note_rounded;
+    }
+
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: bg,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Icon(icon, color: Colors.white, size: 16),
+      ),
+    );
+  }
+
+  Widget _buildCategoryTag(TripEventItem event) {
+    Color bg = const Color(0xFFF1F5F9);
+    Color border = const Color(0xFFCBD5E1);
+    Color text = const Color(0xFF334155);
+    String label = event.category;
+
+    if (event.category == 'Lodging') {
+      bg = const Color(0xFFECFDF5);
+      border = const Color(0xFFA7F3D0);
+      text = const Color(0xFF059669);
+      label = 'Lodging · ${event.subCategory}';
+    } else if (event.category == 'Transportation') {
+      bg = const Color(0xFFF0F9FF);
+      border = const Color(0xFFBAE6FD);
+      text = const Color(0xFF0284C7);
+      if (event.subDetail != null && event.subDetail!.isNotEmpty) {
+        label = '${event.subCategory} (${event.subDetail})';
+      } else {
+        label = 'Transport · ${event.subCategory}';
+      }
+    } else if (event.category == 'Info') {
+      bg = const Color(0xFFEEF2FF);
+      border = const Color(0xFFC7D2FE);
+      text = const Color(0xFF4F46E5);
+      label = 'Info · ${event.subCategory}';
+    } else {
+      bg = const Color(0xFFF8FAFC);
+      border = const Color(0xFFE2E8F0);
+      text = const Color(0xFF334155);
+      if (event.subCategory.isNotEmpty &&
+          event.subCategory != 'Activity' &&
+          event.subCategory != 'No Category') {
+        label = 'Activity · ${event.subCategory}';
+      } else {
+        label = 'Activity';
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: text,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
   Widget _buildEventCard(TripEventItem event) {
     final hasAttachments = event.attachments.isNotEmpty;
     final hasPhotos = event.photos.isNotEmpty;
@@ -505,36 +596,33 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row: 6-dot drag indicator, Blue Event Badge, Title, Edit button, 3-dots menu
+          // Header Row: 6-dot drag indicator, Category Badge, Title, Edit button, 3-dots menu
           Row(
             children: [
               const Icon(Icons.drag_indicator_rounded,
                   color: Color(0xFFCBD5E1), size: 20),
               const SizedBox(width: 10),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF2563EB),
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
-                  child: Icon(Icons.event_note_rounded,
-                      color: Colors.white, size: 16),
-                ),
-              ),
+              _buildEventIconBadge(event),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  event.title.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 16.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: Color(0xFF0F172A),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Row(
+                  children: [
+                    _buildCategoryTag(event),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        event.title.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: Color(0xFF0F172A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               IconButton(
@@ -920,11 +1008,18 @@ class _AddEventDialogState extends State<AddEventDialog> {
   String? _errorMessage;
   Timer? _debounceTimer;
 
+  String _selectedCategory = 'Activity';
+  String _selectedSubCategory = 'Activity';
+  String? _selectedSubDetail;
+
   @override
   void initState() {
     super.initState();
     if (widget.eventToEdit != null) {
       final e = widget.eventToEdit!;
+      _selectedCategory = e.category.isNotEmpty ? e.category : 'Activity';
+      _selectedSubCategory = e.subCategory.isNotEmpty ? e.subCategory : 'Activity';
+      _selectedSubDetail = e.subDetail ?? (_selectedCategory == 'Transportation' ? 'Departure' : null);
       _titleController.text = e.title;
       _descriptionController.text = e.description;
       _mapsUrlController.text = e.mapUrl ?? '';
@@ -1102,6 +1197,9 @@ class _AddEventDialogState extends State<AddEventDialog> {
       itineraryId: widget.itineraryId,
       dayId: widget.dayId,
       dayNumber: widget.dayNumber,
+      category: _selectedCategory,
+      subCategory: _selectedSubCategory,
+      subDetail: _selectedSubDetail,
       title: title,
       eventDate: widget.eventToEdit?.eventDate ?? '',
       startTime: widget.eventToEdit?.startTime,
@@ -1138,6 +1236,429 @@ class _AddEventDialogState extends State<AddEventDialog> {
     } catch (e) {
       setState(() => _errorMessage = 'Failed to save event: $e');
     }
+  }
+
+  Widget _buildCategorySelector() {
+    final categories = [
+      {'name': 'Activity', 'icon': Icons.directions_walk_rounded},
+      {'name': 'Lodging', 'icon': Icons.hotel_rounded},
+      {'name': 'Transportation', 'icon': Icons.directions_car_rounded},
+      {'name': 'Info', 'icon': Icons.info_outline_rounded},
+    ];
+
+    return Row(
+      children: categories.map((cat) {
+        final name = cat['name'] as String;
+        final icon = cat['icon'] as IconData;
+        final isSelected = _selectedCategory == name;
+
+        return Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _selectedCategory = name;
+                  if (name == 'Activity') {
+                    _selectedSubCategory = 'Activity';
+                    _selectedSubDetail = null;
+                  } else if (name == 'Lodging') {
+                    _selectedSubCategory = 'Check-in';
+                    _selectedSubDetail = null;
+                  } else if (name == 'Transportation') {
+                    _selectedSubCategory = 'Flight';
+                    _selectedSubDetail = 'Departure';
+                  } else if (name == 'Info') {
+                    _selectedSubCategory = 'Info';
+                    _selectedSubDetail = null;
+                  }
+                });
+              },
+              borderRadius: BorderRadius.circular(22),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8.5),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF0F172A) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(22),
+                  border: isSelected
+                      ? null
+                      : Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 17,
+                      color: isSelected ? Colors.white : const Color(0xFF475569),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                        color: isSelected ? Colors.white : const Color(0xFF475569),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildSubCategorySelector() {
+    Widget content;
+
+    if (_selectedCategory == 'Activity') {
+      content = _buildActivitySubCategories();
+    } else if (_selectedCategory == 'Lodging') {
+      content = _buildLodgingSubCategories();
+    } else if (_selectedCategory == 'Transportation') {
+      content = _buildTransportationSubCategories();
+    } else {
+      content = _buildInfoSubCategories();
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(
+          width: 140,
+          child: Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+              'Sub-\nCategory',
+              style: TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1E293B),
+                height: 1.2,
+              ),
+            ),
+          ),
+        ),
+        Expanded(child: content),
+      ],
+    );
+  }
+
+  Widget _buildActivitySubCategories() {
+    final subCats = [
+      {'name': 'Activity', 'icon': Icons.directions_walk_rounded, 'color': const Color(0xFF0F172A)},
+      {'name': 'Attraction', 'icon': Icons.museum_outlined, 'color': const Color(0xFF9333EA)},
+      {'name': 'Bar', 'icon': Icons.local_bar_rounded, 'color': const Color(0xFFEA580C)},
+      {'name': 'Beach', 'icon': Icons.waves_rounded, 'color': const Color(0xFF0284C7)},
+      {'name': 'Cafe', 'icon': Icons.coffee_rounded, 'color': const Color(0xFF78350F)},
+      {'name': 'City Guide', 'icon': Icons.menu_book_rounded, 'color': const Color(0xFF4F46E5)},
+      {'name': 'Nature', 'icon': Icons.park_rounded, 'color': const Color(0xFF16A34A)},
+      {'name': 'Other', 'icon': Icons.place_outlined, 'color': const Color(0xFF7C3AED)},
+      {'name': 'Restaurant', 'icon': Icons.restaurant_rounded, 'color': const Color(0xFFDC2626)},
+      {'name': 'Shopping', 'icon': Icons.shopping_bag_outlined, 'color': const Color(0xFFD97706)},
+      {'name': 'No Category', 'icon': null, 'color': const Color(0xFF64748B)},
+    ];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: subCats.map((item) {
+        final name = item['name'] as String;
+        final icon = item['icon'] as IconData?;
+        final accent = item['color'] as Color;
+        final isSelected = _selectedSubCategory == name;
+
+        return InkWell(
+          onTap: () => setState(() => _selectedSubCategory = name),
+          borderRadius: BorderRadius.circular(18),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+                width: 1.2,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.15),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      )
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(
+                    icon,
+                    size: 15,
+                    color: isSelected ? Colors.white : accent,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                    color: isSelected ? Colors.white : const Color(0xFF334155),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildLodgingSubCategories() {
+    final isCheckIn = _selectedSubCategory == 'Check-in';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFBBF7D0), width: 1.2),
+      ),
+      padding: const EdgeInsets.all(3.5),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildSegmentOption(
+            label: 'Check-in',
+            icon: Icons.login_rounded,
+            isSelected: isCheckIn,
+            onTap: () => setState(() => _selectedSubCategory = 'Check-in'),
+          ),
+          const SizedBox(width: 4),
+          _buildSegmentOption(
+            label: 'Check-out',
+            icon: Icons.logout_rounded,
+            isSelected: !isCheckIn,
+            onTap: () => setState(() => _selectedSubCategory = 'Check-out'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransportationSubCategories() {
+    final modes = [
+      {'name': 'Flight', 'icon': Icons.flight_rounded},
+      {'name': 'Train', 'icon': Icons.train_rounded},
+      {'name': 'Bus', 'icon': Icons.directions_bus_rounded},
+      {'name': 'Car', 'icon': Icons.directions_car_rounded},
+      {'name': 'Taxi', 'icon': Icons.local_taxi_rounded},
+      {'name': 'Bicycle', 'icon': Icons.pedal_bike_rounded},
+      {'name': 'Cruise', 'icon': Icons.directions_boat_rounded},
+      {'name': 'Ferry', 'icon': Icons.sailing_rounded},
+      {'name': 'Other', 'icon': Icons.alt_route_rounded},
+    ];
+
+    final isDeparture = _selectedSubDetail != 'Arrival';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: modes.map((m) {
+            final name = m['name'] as String;
+            final icon = m['icon'] as IconData;
+            final isSelected = _selectedSubCategory == name;
+
+            return InkWell(
+              onTap: () => setState(() => _selectedSubCategory = name),
+              borderRadius: BorderRadius.circular(18),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+                    width: 1.2,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 15,
+                      color: isSelected ? Colors.white : const Color(0xFF475569),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                        color: isSelected ? Colors.white : const Color(0xFF334155),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        // Departure vs Arrival Segmented Container
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFBBF7D0), width: 1.2),
+            ),
+            padding: const EdgeInsets.all(3.5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSegmentOption(
+                  label: 'Departure',
+                  icon: _selectedSubCategory == 'Flight'
+                      ? Icons.flight_takeoff_rounded
+                      : Icons.arrow_outward_rounded,
+                  isSelected: isDeparture,
+                  onTap: () => setState(() => _selectedSubDetail = 'Departure'),
+                ),
+                const SizedBox(width: 4),
+                _buildSegmentOption(
+                  label: 'Arrival',
+                  icon: _selectedSubCategory == 'Flight'
+                      ? Icons.flight_land_rounded
+                      : Icons.arrow_downward_rounded,
+                  isSelected: !isDeparture,
+                  onTap: () => setState(() => _selectedSubDetail = 'Arrival'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoSubCategories() {
+    final infoSubs = [
+      {'name': 'Info', 'icon': Icons.info_outline_rounded, 'color': const Color(0xFF2563EB)},
+      {'name': 'City Guide', 'icon': Icons.menu_book_rounded, 'color': const Color(0xFF4F46E5)},
+    ];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: infoSubs.map((item) {
+        final name = item['name'] as String;
+        final icon = item['icon'] as IconData;
+        final accent = item['color'] as Color;
+        final isSelected = _selectedSubCategory == name;
+
+        return InkWell(
+          onTap: () => setState(() => _selectedSubCategory = name),
+          borderRadius: BorderRadius.circular(18),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+                width: 1.2,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 15,
+                  color: isSelected ? Colors.white : accent,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                    color: isSelected ? Colors.white : const Color(0xFF334155),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildSegmentOption({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(9),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+          border: isSelected
+              ? Border.all(color: const Color(0xFF86EFAC), width: 1.1)
+              : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF059669).withValues(alpha: 0.12),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  )
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? const Color(0xFF059669) : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? const Color(0xFF059669) : const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -1235,6 +1756,16 @@ class _AddEventDialogState extends State<AddEventDialog> {
                           ],
                         ),
                       ),
+
+                    // Top Category Selector
+                    _buildCategorySelector(),
+                    const SizedBox(height: 18),
+
+                    // Sub-Category Selector
+                    _buildSubCategorySelector(),
+                    const SizedBox(height: 22),
+                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    const SizedBox(height: 22),
 
                     // 1. Event Title
                     Row(

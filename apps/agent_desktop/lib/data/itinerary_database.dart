@@ -187,6 +187,9 @@ class TripEventItem {
   final double? longitude;
   final String? mapUrl;
   final String? attachmentsJson; // Attached document vouchers, passes, tickets
+  final String category; // 'Activity', 'Lodging', 'Transportation', 'Info'
+  final String subCategory; // e.g. 'Attraction', 'Check-in', 'Flight', etc.
+  final String? subDetail; // e.g. 'Departure', 'Arrival' (for Transportation)
 
   const TripEventItem({
     required this.id,
@@ -209,6 +212,9 @@ class TripEventItem {
     this.longitude,
     this.mapUrl,
     this.attachmentsJson,
+    this.category = 'Activity',
+    this.subCategory = 'Activity',
+    this.subDetail,
   });
 
   bool get hasLocation => locationName != null && locationName!.trim().isNotEmpty;
@@ -253,6 +259,9 @@ class TripEventItem {
       'longitude': longitude,
       'map_url': mapUrl,
       'attachments_json': attachmentsJson,
+      'category': category,
+      'sub_category': subCategory,
+      'sub_detail': subDetail,
     };
   }
 
@@ -298,6 +307,9 @@ class TripEventItem {
       longitude: (map['longitude'] as num?)?.toDouble(),
       mapUrl: map['map_url'] as String?,
       attachmentsJson: map['attachments_json'] as String?,
+      category: map['category'] as String? ?? 'Activity',
+      subCategory: map['sub_category'] as String? ?? 'Activity',
+      subDetail: map['sub_detail'] as String?,
     );
   }
 
@@ -322,6 +334,9 @@ class TripEventItem {
     double? longitude,
     String? mapUrl,
     String? attachmentsJson,
+    String? category,
+    String? subCategory,
+    String? subDetail,
   }) {
     return TripEventItem(
       id: id ?? this.id,
@@ -344,6 +359,9 @@ class TripEventItem {
       longitude: longitude ?? this.longitude,
       mapUrl: mapUrl ?? this.mapUrl,
       attachmentsJson: attachmentsJson ?? this.attachmentsJson,
+      category: category ?? this.category,
+      subCategory: subCategory ?? this.subCategory,
+      subDetail: subDetail ?? this.subDetail,
     );
   }
 }
@@ -757,6 +775,9 @@ class ItineraryDatabase {
       'longitude REAL',
       'map_url TEXT',
       'attachments_json TEXT',
+      'category TEXT NOT NULL DEFAULT "Activity"',
+      'sub_category TEXT',
+      'sub_detail TEXT',
     ]) {
       try {
         await db.execute('ALTER TABLE trip_events ADD COLUMN $col');
@@ -789,6 +810,9 @@ class ItineraryDatabase {
         day_id TEXT,
         day_number INTEGER NOT NULL DEFAULT 1,
         title TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'Activity',
+        sub_category TEXT,
+        sub_detail TEXT,
         event_date TEXT NOT NULL,
         start_time TEXT,
         end_time TEXT,
@@ -909,6 +933,16 @@ class ItineraryDatabase {
     ]) {
       try {
         await db.execute('ALTER TABLE trip_documents ADD COLUMN $col');
+      } catch (_) {}
+    }
+
+    for (final col in [
+      'category TEXT NOT NULL DEFAULT "Activity"',
+      'sub_category TEXT',
+      'sub_detail TEXT',
+    ]) {
+      try {
+        await db.execute('ALTER TABLE trip_events ADD COLUMN $col');
       } catch (_) {}
     }
   }

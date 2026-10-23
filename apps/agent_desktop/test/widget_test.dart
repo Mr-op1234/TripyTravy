@@ -65,6 +65,9 @@ void main() {
                 day_id TEXT,
                 day_number INTEGER NOT NULL DEFAULT 1,
                 title TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT \'Activity\',
+                sub_category TEXT,
+                sub_detail TEXT,
                 event_date TEXT NOT NULL,
                 start_time TEXT,
                 end_time TEXT,
@@ -314,6 +317,83 @@ void main() {
       expect(docs.length, 1);
       expect(docs.first.title, 'Boarding Pass CCU-DXB');
       expect(docs.first.docType, 'flight');
+    });
+
+    test('Segregates events into Activity, Lodging, Transport, and Info categories with sub-categories', () async {
+      final trip = await ItineraryDatabase.instance.insertItinerary(
+        title: 'Euro Adventure',
+        subtitle: 'Multi-category trip',
+        duration: '10 Days',
+        dateRange: '01-08-2026 -> 10-08-2026',
+        imagePath: '',
+      );
+
+      final actEvent = TripEventItem(
+        id: 'act_1',
+        itineraryId: trip.id,
+        title: 'Eiffel Tower Tour',
+        category: 'Activity',
+        subCategory: 'Attraction',
+        eventDate: '2026-08-01',
+        duration: '2 hrs',
+        location: 'Paris',
+      );
+      final lodgeEvent = TripEventItem(
+        id: 'lodge_1',
+        itineraryId: trip.id,
+        title: 'Check in to Hotel',
+        category: 'Lodging',
+        subCategory: 'Check-in',
+        eventDate: '2026-08-01',
+        duration: '30 mins',
+        location: 'Paris Center',
+      );
+      final transEvent = TripEventItem(
+        id: 'trans_1',
+        itineraryId: trip.id,
+        title: 'Flight to Nice',
+        category: 'Transport',
+        subCategory: 'Flight',
+        subDetail: 'Departure',
+        eventDate: '2026-08-02',
+        duration: '1 hr 30 mins',
+        location: 'CDG Airport',
+      );
+      final infoEvent = TripEventItem(
+        id: 'info_1',
+        itineraryId: trip.id,
+        title: 'Emergency Medical & Embassy Info',
+        category: 'Info',
+        subCategory: 'Info',
+        eventDate: '2026-08-01',
+        duration: '',
+        location: 'Paris',
+      );
+
+      await ItineraryDatabase.instance.insertEvent(actEvent);
+      await ItineraryDatabase.instance.insertEvent(lodgeEvent);
+      await ItineraryDatabase.instance.insertEvent(transEvent);
+      await ItineraryDatabase.instance.insertEvent(infoEvent);
+
+      final retrieved = await ItineraryDatabase.instance.getEventsForItinerary(trip.id);
+      expect(retrieved.length, 4);
+
+      final act = retrieved.firstWhere((e) => e.id == 'act_1');
+      expect(act.category, 'Activity');
+      expect(act.subCategory, 'Attraction');
+
+      final lodge = retrieved.firstWhere((e) => e.id == 'lodge_1');
+      expect(lodge.category, 'Lodging');
+      expect(lodge.subCategory, 'Check-in');
+
+      final trans = retrieved.firstWhere((e) => e.id == 'trans_1');
+      expect(trans.category, 'Transport');
+      expect(trans.subCategory, 'Flight');
+      expect(trans.subDetail, 'Departure');
+
+      final info = retrieved.firstWhere((e) => e.id == 'info_1');
+      expect(info.category, 'Info');
+      expect(info.subCategory, 'Info');
     });
 
     test('Enforces foreign key cascades across normalized multi-table database',
