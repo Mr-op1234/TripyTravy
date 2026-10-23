@@ -1579,7 +1579,12 @@ class _AddEventDialogState extends State<AddEventDialog> {
             ),
           ),
         ),
-        Expanded(child: content),
+        _selectedCategory == 'Lodging'
+            ? Align(
+                alignment: Alignment.centerLeft,
+                child: content,
+              )
+            : Expanded(child: content),
       ],
     );
   }
@@ -1663,11 +1668,11 @@ class _AddEventDialogState extends State<AddEventDialog> {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF0FDF4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFBBF7D0), width: 1.2),
+        color: const Color(0xFFF0F9FF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFBAE6FD), width: 1.2),
       ),
-      padding: const EdgeInsets.all(3.5),
+      padding: const EdgeInsets.all(3.0),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1758,11 +1763,11 @@ class _AddEventDialogState extends State<AddEventDialog> {
           alignment: Alignment.centerLeft,
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFFF0FDF4),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFBBF7D0), width: 1.2),
+              color: const Color(0xFFF0F9FF),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFBAE6FD), width: 1.2),
             ),
-            padding: const EdgeInsets.all(3.5),
+            padding: const EdgeInsets.all(3.0),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1853,20 +1858,20 @@ class _AddEventDialogState extends State<AddEventDialog> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(9),
+      borderRadius: BorderRadius.circular(8),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(8),
           border: isSelected
-              ? Border.all(color: const Color(0xFF86EFAC), width: 1.1)
+              ? Border.all(color: const Color(0xFFBAE6FD), width: 1.1)
               : null,
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF059669).withValues(alpha: 0.12),
+                    color: const Color(0xFF0284C7).withValues(alpha: 0.12),
                     blurRadius: 4,
                     offset: const Offset(0, 1),
                   )
@@ -1878,16 +1883,16 @@ class _AddEventDialogState extends State<AddEventDialog> {
           children: [
             Icon(
               icon,
-              size: 16,
-              color: isSelected ? const Color(0xFF059669) : const Color(0xFF64748B),
+              size: 15,
+              color: isSelected ? const Color(0xFF0284C7) : const Color(0xFF64748B),
             ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? const Color(0xFF059669) : const Color(0xFF64748B),
+                color: isSelected ? const Color(0xFF0284C7) : const Color(0xFF64748B),
               ),
             ),
           ],
