@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'google_maps_helper.dart';
 
 class DestinationItem {
   final int id;
@@ -188,6 +189,7 @@ class TripEventItem {
   final String? mapUrl;
   final String? attachmentsJson; // Attached document vouchers, passes, tickets
   final String? flightDataJson; // Structured Flight details (route, times, stops, booking, status)
+  final String? locationsJson; // Structured multiple location cards JSON
   final String category; // 'Activity', 'Lodging', 'Transportation', 'Info'
   final String subCategory; // e.g. 'Attraction', 'Check-in', 'Flight', etc.
   final String? subDetail; // e.g. 'Departure', 'Arrival' (for Transportation)
@@ -214,13 +216,48 @@ class TripEventItem {
     this.mapUrl,
     this.attachmentsJson,
     this.flightDataJson,
+    this.locationsJson,
     this.category = 'Activity',
     this.subCategory = 'Activity',
     this.subDetail,
   });
 
-  bool get hasLocation => locationName != null && locationName!.trim().isNotEmpty;
+  bool get hasLocation =>
+      (locationName != null && locationName!.trim().isNotEmpty) ||
+      locations.isNotEmpty;
   bool get hasCoordinates => latitude != null && longitude != null;
+
+  List<GoogleMapsLocation> get locations {
+    if (locationsJson != null && locationsJson!.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(locationsJson!) as List<dynamic>;
+        return decoded
+            .map((e) => GoogleMapsLocation.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      } catch (_) {}
+    }
+    if (locationName != null && locationName!.trim().isNotEmpty) {
+      return [
+        GoogleMapsLocation(
+          locationName: locationName!,
+          latitude: latitude,
+          longitude: longitude,
+          rawUrl: mapUrl ?? '',
+        )
+      ];
+    }
+    if (mapUrl != null && mapUrl!.trim().isNotEmpty) {
+      return [
+        GoogleMapsLocation(
+          locationName: location.isNotEmpty ? location : 'Location',
+          latitude: latitude,
+          longitude: longitude,
+          rawUrl: mapUrl!,
+        )
+      ];
+    }
+    return [];
+  }
 
   String get coordinatesDisplay {
     if (!hasCoordinates) return '';
@@ -262,6 +299,7 @@ class TripEventItem {
       'map_url': mapUrl,
       'attachments_json': attachmentsJson,
       'flight_data_json': flightDataJson,
+      'locations_json': locationsJson,
       'category': category,
       'sub_category': subCategory,
       'sub_detail': subDetail,
@@ -311,6 +349,7 @@ class TripEventItem {
       mapUrl: map['map_url'] as String?,
       attachmentsJson: map['attachments_json'] as String?,
       flightDataJson: map['flight_data_json'] as String?,
+      locationsJson: map['locations_json'] as String?,
       category: map['category'] as String? ?? 'Activity',
       subCategory: map['sub_category'] as String? ?? 'Activity',
       subDetail: map['sub_detail'] as String?,
@@ -339,6 +378,7 @@ class TripEventItem {
     String? mapUrl,
     String? attachmentsJson,
     String? flightDataJson,
+    String? locationsJson,
     String? category,
     String? subCategory,
     String? subDetail,
@@ -365,6 +405,7 @@ class TripEventItem {
       mapUrl: mapUrl ?? this.mapUrl,
       attachmentsJson: attachmentsJson ?? this.attachmentsJson,
       flightDataJson: flightDataJson ?? this.flightDataJson,
+      locationsJson: locationsJson ?? this.locationsJson,
       category: category ?? this.category,
       subCategory: subCategory ?? this.subCategory,
       subDetail: subDetail ?? this.subDetail,
@@ -782,6 +823,7 @@ class ItineraryDatabase {
       'map_url TEXT',
       'attachments_json TEXT',
       'flight_data_json TEXT',
+      'locations_json TEXT',
       'category TEXT NOT NULL DEFAULT "Activity"',
       'sub_category TEXT',
       'sub_detail TEXT',
@@ -836,6 +878,7 @@ class ItineraryDatabase {
         map_url TEXT,
         attachments_json TEXT,
         flight_data_json TEXT,
+        locations_json TEXT,
         FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE,
         FOREIGN KEY (day_id) REFERENCES itinerary_days(id) ON DELETE CASCADE
       )

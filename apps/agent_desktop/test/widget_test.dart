@@ -84,6 +84,7 @@ void main() {
                 map_url TEXT,
                 attachments_json TEXT,
                 flight_data_json TEXT,
+                locations_json TEXT,
                 FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE,
                 FOREIGN KEY (day_id) REFERENCES itinerary_days(id) ON DELETE CASCADE
               )
@@ -130,6 +131,7 @@ void main() {
                 map_url TEXT,
                 attachments_json TEXT,
                 flight_data_json TEXT,
+                locations_json TEXT,
                 FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE,
                 FOREIGN KEY (event_id) REFERENCES trip_events(id) ON DELETE SET NULL
               )

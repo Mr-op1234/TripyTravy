@@ -1077,61 +1077,72 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
           // Flight Details Summary (if category is Flight)
           _buildTransportationSummaryCard(event),
 
-          // Location Card (if present)
-          if (event.hasLocation ||
-              (event.mapUrl != null && event.mapUrl!.isNotEmpty)) ...[
+          // Location Cards (Horizontal list if multiple, single card if one)
+          if (event.locations.isNotEmpty) ...[
             const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
               child: Row(
-                children: [
-                  const Icon(Icons.location_on_rounded,
-                      color: Color(0xFF2563EB), size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                children: event.locations.map((loc) {
+                  return Container(
+                    margin: const EdgeInsets.only(right: 12),
+                    constraints: const BoxConstraints(minWidth: 260, maxWidth: 360),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          event.locationName ??
-                              (event.location.isNotEmpty
-                                  ? event.location
-                                  : 'Location'),
-                          style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF0F172A)),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        const Icon(Icons.location_on_rounded,
+                            color: Color(0xFF2563EB), size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                loc.locationName.isNotEmpty ? loc.locationName : 'Location',
+                                style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0F172A)),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (loc.hasCoordinates) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  loc.coordinatesDisplay,
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Color(0xFF64748B)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                        if (event.hasCoordinates) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            event.coordinatesDisplay,
-                            style: const TextStyle(
-                                fontSize: 12, color: Color(0xFF64748B)),
+                        if (loc.rawUrl.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          TextButton.icon(
+                            onPressed: () => _openFile(loc.rawUrl),
+                            icon: const Icon(Icons.open_in_new_rounded,
+                                size: 14, color: Color(0xFF2563EB)),
+                            label: const Text('Open Map',
+                                style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: Color(0xFF2563EB),
+                                    fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ],
                     ),
-                  ),
-                  if (event.mapUrl != null && event.mapUrl!.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: () => _openFile(event.mapUrl!),
-                      icon: const Icon(Icons.open_in_new_rounded,
-                          size: 14, color: Color(0xFF2563EB)),
-                      label: const Text('Open Map',
-                          style: TextStyle(
-                              fontSize: 12.5,
-                              color: Color(0xFF2563EB),
-                              fontWeight: FontWeight.bold)),
-                    ),
-                ],
+                  );
+                }).toList(),
               ),
             ),
           ],
@@ -1483,11 +1494,11 @@ class _AddEventDialogState extends State<AddEventDialog> {
   List<Map<String, String>> _existingAttachments = [];
   final List<String> _photosList = [];
 
-  GoogleMapsLocation? _fetchedLocation;
+  final List<GoogleMapsLocation> _fetchedLocations = [];
+  final FocusNode _mapsFocusNode = FocusNode();
   bool _isFetchingLocation = false;
   String? _locationStatusMessage;
   String? _errorMessage;
-  Timer? _debounceTimer;
 
   String _selectedCategory = 'Activity';
   String _selectedSubCategory = 'Activity';
@@ -1496,6 +1507,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
   @override
   void initState() {
     super.initState();
+    _mapsFocusNode.addListener(_onMapsFocusChanged);
     if (widget.eventToEdit != null) {
       final e = widget.eventToEdit!;
       _selectedCategory = e.category.isNotEmpty ? e.category : 'Activity';
@@ -1527,13 +1539,9 @@ class _AddEventDialogState extends State<AddEventDialog> {
         } catch (_) {}
       }
 
-      if (e.hasLocation || e.hasCoordinates) {
-        _fetchedLocation = GoogleMapsLocation(
-          locationName: e.locationName ?? e.location,
-          latitude: e.latitude,
-          longitude: e.longitude,
-          rawUrl: e.mapUrl ?? '',
-        );
+      _fetchedLocations.addAll(e.locations);
+      if (_fetchedLocations.isNotEmpty && _mapsUrlController.text.trim().isEmpty) {
+        _mapsUrlController.text = _fetchedLocations.map((l) => l.rawUrl).where((u) => u.isNotEmpty).join('\n');
       }
 
       _existingAttachments = List<Map<String, String>>.from(e.attachments);
@@ -1542,7 +1550,8 @@ class _AddEventDialogState extends State<AddEventDialog> {
 
   @override
   void dispose() {
-    _debounceTimer?.cancel();
+    _mapsFocusNode.removeListener(_onMapsFocusChanged);
+    _mapsFocusNode.dispose();
     _transFromController.dispose();
     _transDepDateController.dispose();
     _transDepTimeController.dispose();
@@ -1631,43 +1640,75 @@ class _AddEventDialogState extends State<AddEventDialog> {
     }
   }
 
-  void _onMapsUrlChanged(String val) {
-    _debounceTimer?.cancel();
-    if (val.trim().isEmpty) {
+  void _onMapsFocusChanged() {
+    // When focus is lost (clicked outside the input box), trigger parsing of all lines parallelly
+    if (!_mapsFocusNode.hasFocus) {
+      _parseAllLocationLinks();
+    }
+  }
+
+  Future<void> _parseAllLocationLinks() async {
+    final text = _mapsUrlController.text;
+    final lines = text
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+
+    if (lines.isEmpty) {
       setState(() {
-        _fetchedLocation = null;
+        _fetchedLocations.clear();
         _locationStatusMessage = null;
       });
       return;
     }
-    _debounceTimer = Timer(const Duration(milliseconds: 450), () {
-      _fetchLocationData(val);
-    });
-  }
-
-  Future<void> _fetchLocationData(String rawUrl) async {
-    final url = rawUrl.trim();
-    if (url.isEmpty) return;
 
     setState(() {
       _isFetchingLocation = true;
-      _locationStatusMessage = 'Fetching location details and coordinates...';
+      _locationStatusMessage =
+          'Parsing ${lines.length} location card${lines.length > 1 ? "s" : ""} in parallel...';
     });
 
     try {
-      final location = await GoogleMapsHelper.parse(url);
+      // Parse all lines in parallel
+      final futures = lines.map((url) => GoogleMapsHelper.parse(url));
+      final results = await Future.wait(futures);
+
       if (mounted) {
-        setState(() {
-          _isFetchingLocation = false;
-          if (location != null) {
-            _fetchedLocation = location;
-            _locationStatusMessage = null;
-            if (_titleController.text.trim().isEmpty) {
-              _titleController.text = location.locationName;
+        final List<GoogleMapsLocation> newLocations = [];
+        for (int i = 0; i < lines.length; i++) {
+          final res = results[i];
+          final rawUrl = lines[i];
+          if (res != null) {
+            // Check if existing item already had a user-edited name for this same rawUrl
+            final existingMatch = _fetchedLocations.where((loc) => loc.rawUrl == rawUrl).firstOrNull;
+            if (existingMatch != null && existingMatch.locationName.isNotEmpty) {
+              newLocations.add(GoogleMapsLocation(
+                locationName: existingMatch.locationName,
+                latitude: res.latitude,
+                longitude: res.longitude,
+                rawUrl: rawUrl,
+              ));
+            } else {
+              newLocations.add(res);
             }
           } else {
-            _locationStatusMessage =
-                'Could not extract location data from link. Please check the URL.';
+            // Keep as fallback card with rawUrl
+            newLocations.add(GoogleMapsLocation(
+              locationName: 'Location ${i + 1}',
+              rawUrl: rawUrl,
+            ));
+          }
+        }
+
+        setState(() {
+          _isFetchingLocation = false;
+          _fetchedLocations
+            ..clear()
+            ..addAll(newLocations);
+          _locationStatusMessage = null;
+          if (_titleController.text.trim().isEmpty && _fetchedLocations.isNotEmpty) {
+            _titleController.text = _fetchedLocations.first.locationName;
           }
         });
       }
@@ -1675,10 +1716,83 @@ class _AddEventDialogState extends State<AddEventDialog> {
       if (mounted) {
         setState(() {
           _isFetchingLocation = false;
-          _locationStatusMessage = 'Error fetching location: $e';
+          _locationStatusMessage = 'Error fetching locations: $e';
         });
       }
     }
+  }
+
+  void _editLocationCardName(int index) {
+    if (index < 0 || index >= _fetchedLocations.length) return;
+    final loc = _fetchedLocations[index];
+    final textController = TextEditingController(text: loc.locationName);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.edit_rounded, color: Color(0xFF2563EB), size: 20),
+            SizedBox(width: 8),
+            Text('Edit Location Name', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SizedBox(
+          width: 360,
+          child: TextField(
+            controller: textController,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Enter custom location name...',
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              final newName = textController.text.trim();
+              if (newName.isNotEmpty) {
+                setState(() {
+                  _fetchedLocations[index] = GoogleMapsLocation(
+                    locationName: newName,
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                    rawUrl: loc.rawUrl,
+                  );
+                });
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _removeLocationCard(int index) {
+    if (index < 0 || index >= _fetchedLocations.length) return;
+    setState(() {
+      _fetchedLocations.removeAt(index);
+      _mapsUrlController.text =
+          _fetchedLocations.map((l) => l.rawUrl).where((u) => u.isNotEmpty).join('\n');
+    });
   }
 
   Future<void> _saveEvent() async {
@@ -1729,6 +1843,11 @@ class _AddEventDialogState extends State<AddEventDialog> {
       flightDataJson = jsonEncode(transMap);
     }
 
+    final primaryLocation = _fetchedLocations.isNotEmpty ? _fetchedLocations.first : null;
+    final locationsJson = _fetchedLocations.isNotEmpty
+        ? jsonEncode(_fetchedLocations.map((l) => l.toMap()).toList())
+        : null;
+
     final event = TripEventItem(
       id: widget.eventToEdit?.id ??
           'evt_${widget.itineraryId}_${DateTime.now().millisecondsSinceEpoch}',
@@ -1743,8 +1862,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
       startTime: widget.eventToEdit?.startTime,
       endTime: widget.eventToEdit?.endTime,
       duration: widget.eventToEdit?.duration ?? '',
-      location:
-          _fetchedLocation?.locationName ?? widget.eventToEdit?.location ?? '',
+      location: primaryLocation?.locationName ?? widget.eventToEdit?.location ?? '',
       description: _descriptionController.text.trim(),
       coverImage: _photosList.isNotEmpty
           ? _photosList.first
@@ -1752,14 +1870,15 @@ class _AddEventDialogState extends State<AddEventDialog> {
       photos: _photosList,
       notes: widget.eventToEdit?.notes ?? [],
       sortOrder: widget.eventToEdit?.sortOrder ?? 0,
-      locationName: _fetchedLocation?.locationName,
-      latitude: _fetchedLocation?.latitude,
-      longitude: _fetchedLocation?.longitude,
-      mapUrl: _mapsUrlController.text.trim().isEmpty
-          ? null
-          : _mapsUrlController.text.trim(),
+      locationName: primaryLocation?.locationName,
+      latitude: primaryLocation?.latitude,
+      longitude: primaryLocation?.longitude,
+      mapUrl: primaryLocation?.rawUrl.isNotEmpty == true
+          ? primaryLocation!.rawUrl
+          : (_mapsUrlController.text.trim().isEmpty ? null : _mapsUrlController.text.trim().split('\n').first.trim()),
       attachmentsJson: attachmentsJson,
       flightDataJson: flightDataJson,
+      locationsJson: locationsJson,
     );
 
     try {
@@ -2940,7 +3059,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                           color: Color(0xFFF1F5F9), height: 1, thickness: 1.2),
                     ),
 
-                    // 3. Location Card Section (Google Maps auto-fetch)
+                    // 3. Location Cards Section (Multi-line input & parallel auto-fetch)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -2957,9 +3076,9 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                         fontWeight: FontWeight.bold,
                                         color: Color(0xFF1E293B))),
                                 SizedBox(height: 2),
-                                Text('Google Maps Link',
+                                Text('Google Maps Link(s)',
                                     style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 11.5,
                                         color: Color(0xFF64748B))),
                               ],
                             ),
@@ -2971,14 +3090,21 @@ class _AddEventDialogState extends State<AddEventDialog> {
                             children: [
                               TextField(
                                 controller: _mapsUrlController,
-                                onChanged: _onMapsUrlChanged,
+                                focusNode: _mapsFocusNode,
+                                minLines: 2,
+                                maxLines: 5,
+                                keyboardType: TextInputType.multiline,
                                 decoration: InputDecoration(
                                   hintText:
-                                      'Paste Google Maps place or coordinates link (https://maps.google.com/...)',
-                                  prefixIcon: const Icon(
-                                      Icons.location_on_outlined,
-                                      color: Color(0xFF2563EB),
-                                      size: 20),
+                                      'Paste Google Maps link(s) line-by-line.\nClick outside to parse all locations in parallel.',
+                                  hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+                                  prefixIcon: const Padding(
+                                    padding: EdgeInsets.only(bottom: 24),
+                                    child: Icon(
+                                        Icons.location_on_outlined,
+                                        color: Color(0xFF2563EB),
+                                        size: 20),
+                                  ),
                                   suffixIcon: _isFetchingLocation
                                       ? const Padding(
                                           padding: EdgeInsets.all(12),
@@ -3003,71 +3129,116 @@ class _AddEventDialogState extends State<AddEventDialog> {
                               ),
                               if (_locationStatusMessage != null) ...[
                                 const SizedBox(height: 8),
-                                Text(_locationStatusMessage!,
-                                    style: const TextStyle(
-                                        fontSize: 12.5,
-                                        color: Color(0xFF64748B),
-                                        fontStyle: FontStyle.italic)),
-                              ],
-                              if (_fetchedLocation != null) ...[
-                                const SizedBox(height: 12),
-                                Container(
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEFF6FF),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                        color: const Color(0xFFBFDBFE)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 38,
-                                        height: 38,
-                                        decoration: const BoxDecoration(
-                                            color: Color(0xFF2563EB),
-                                            shape: BoxShape.circle),
-                                        child: const Icon(Icons.place_rounded,
-                                            color: Colors.white, size: 20),
+                                Row(
+                                  children: [
+                                    if (_isFetchingLocation) ...[
+                                      const SizedBox(
+                                        width: 12,
+                                        height: 12,
+                                        child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF2563EB)),
                                       ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                      const SizedBox(width: 8),
+                                    ],
+                                    Expanded(
+                                      child: Text(_locationStatusMessage!,
+                                          style: const TextStyle(
+                                              fontSize: 12.5,
+                                              color: Color(0xFF2563EB),
+                                              fontWeight: FontWeight.w500)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (_fetchedLocations.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: _fetchedLocations.asMap().entries.map((entry) {
+                                      final idx = entry.key;
+                                      final loc = entry.value;
+                                      return Container(
+                                        margin: const EdgeInsets.only(right: 12),
+                                        constraints: const BoxConstraints(minWidth: 260, maxWidth: 360),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Text(
-                                              _fetchedLocation!.locationName,
-                                              style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Color(0xFF1E3A8A)),
+                                            Container(
+                                              width: 34,
+                                              height: 34,
+                                              decoration: const BoxDecoration(
+                                                  color: Color(0xFF2563EB),
+                                                  shape: BoxShape.circle),
+                                              child: const Icon(Icons.place_rounded,
+                                                  color: Colors.white, size: 18),
                                             ),
-                                            if (_fetchedLocation!
-                                                .hasCoordinates) ...[
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                'Lat: ${_fetchedLocation!.latitude!.toStringAsFixed(4)}°, Lng: ${_fetchedLocation!.longitude!.toStringAsFixed(4)}°',
-                                                style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: Color(0xFF3B82F6)),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Flexible(
+                                                        child: Text(
+                                                          loc.locationName.isNotEmpty
+                                                              ? loc.locationName
+                                                              : 'Location ${idx + 1}',
+                                                          style: const TextStyle(
+                                                              fontSize: 13.5,
+                                                              fontWeight: FontWeight.bold,
+                                                              color: Color(0xFF1E3A8A)),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      InkWell(
+                                                        onTap: () => _editLocationCardName(idx),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                        child: const Padding(
+                                                          padding: EdgeInsets.all(2.0),
+                                                          child: Icon(Icons.edit_rounded,
+                                                              size: 14, color: Color(0xFF2563EB)),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  if (loc.hasCoordinates) ...[
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      loc.coordinatesDisplay,
+                                                      style: const TextStyle(
+                                                          fontSize: 11.5,
+                                                          color: Color(0xFF3B82F6)),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ],
                                               ),
-                                            ],
+                                            ),
+                                            const SizedBox(width: 6),
+                                            InkWell(
+                                              onTap: () => _removeLocationCard(idx),
+                                              borderRadius: BorderRadius.circular(12),
+                                              child: const Padding(
+                                                padding: EdgeInsets.all(4.0),
+                                                child: Icon(Icons.close_rounded,
+                                                    size: 16, color: Color(0xFF94A3B8)),
+                                              ),
+                                            ),
                                           ],
                                         ),
-                                      ),
-                                      const Chip(
-                                        label: Text('Auto-Fetched',
-                                            style: TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                                color: Color(0xFF1D4ED8))),
-                                        backgroundColor: Color(0xFFDBEAFE),
-                                        padding: EdgeInsets.zero,
-                                        materialTapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                    ],
+                                      );
+                                    }).toList(),
                                   ),
                                 ),
                               ],
