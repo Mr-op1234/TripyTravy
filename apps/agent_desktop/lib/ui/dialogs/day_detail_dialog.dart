@@ -2796,9 +2796,6 @@ class _AddEventDialogState extends State<AddEventDialog> {
                     // Sub-Category Selector
                     _buildSubCategorySelector(),
                     const SizedBox(height: 22),
-                    if (_selectedCategory == 'Transportation') ...[
-                      _buildTransportationFeaturesSection(),
-                    ],
                     const Divider(height: 1, color: Color(0xFFF1F5F9)),
                     const SizedBox(height: 22),
 
@@ -2871,6 +2868,10 @@ class _AddEventDialogState extends State<AddEventDialog> {
                         ),
                       ],
                     ),
+                    if (_selectedCategory == 'Transportation') ...[
+                      const SizedBox(height: 20),
+                      _buildTransportationFeaturesSection(),
+                    ],
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 20),
                       child: Divider(
