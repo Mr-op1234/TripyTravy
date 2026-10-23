@@ -2,10 +2,161 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:pasteboard/pasteboard.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../../data/itinerary_database.dart';
 import '../../data/google_maps_helper.dart';
 import '../widgets/rich_description_editor.dart';
+
+/// Dedicated in-app modal image viewer for full resolution display with zoom & pan.
+class DedicatedImageViewerDialog extends StatelessWidget {
+  final String imagePath;
+  final String title;
+
+  const DedicatedImageViewerDialog({
+    super.key,
+    required this.imagePath,
+    this.title = 'Image Preview',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isAsset = imagePath.startsWith('assets/');
+    final file = File(imagePath);
+    final fileName = p.basename(imagePath);
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Container(
+        width: 1000,
+        height: 750,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.55),
+              blurRadius: 30,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              color: const Color(0xFF1E293B),
+              child: Row(
+                children: [
+                  const Icon(Icons.photo_size_select_actual_outlined,
+                      color: Color(0xFF38BDF8), size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title.isNotEmpty ? title : fileName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (fileName.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            fileName,
+                            style: const TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 11.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Tooltip(
+                    message: 'Close',
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 22),
+                      onPressed: () => Navigator.of(context).pop(),
+                      splashRadius: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  clipBehavior: Clip.none,
+                  child: isAsset
+                      ? Image.asset(
+                          imagePath,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _buildErrorPlaceholder(),
+                        )
+                      : (file.existsSync()
+                          ? Image.file(
+                              file,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  _buildErrorPlaceholder(),
+                            )
+                          : _buildErrorPlaceholder()),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              color: const Color(0xFF1E293B),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Pinch or drag to zoom and pan',
+                    style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.check, size: 16, color: Colors.white),
+                    label: const Text('Done', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorPlaceholder() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: const [
+        Icon(Icons.broken_image_rounded, size: 64, color: Color(0xFF64748B)),
+        SizedBox(height: 12),
+        Text('Unable to display image',
+            style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
+      ],
+    );
+  }
+}
+
 
 /// Small popup dialog to add or edit a Day Name.
 class AddDayDialog extends StatefulWidget {
@@ -457,12 +608,22 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
     );
   }
 
+  void _viewImage(String photoPath, [String? title]) {
+    showDialog(
+      context: context,
+      builder: (ctx) => DedicatedImageViewerDialog(
+        imagePath: photoPath,
+        title: title ?? 'Photo Preview',
+      ),
+    );
+  }
+
   Widget _buildPhotoThumbnail(String photoPath) {
     final isAsset = photoPath.startsWith('assets/');
     final file = File(photoPath);
 
     return InkWell(
-      onTap: () => _openFile(photoPath),
+      onTap: () => _viewImage(photoPath),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: 100,
@@ -994,6 +1155,79 @@ class AddEventDialog extends StatefulWidget {
 }
 
 class _AddEventDialogState extends State<AddEventDialog> {
+  final FocusNode _dialogFocusNode = FocusNode();
+
+  Future<void> _pasteImageFromClipboard() async {
+    try {
+      final imageBytes = await Pasteboard.image;
+      if (imageBytes != null && imageBytes.isNotEmpty) {
+        final appSupportDir = await getApplicationSupportDirectory();
+        final photosDir = Directory(p.join(appSupportDir.path, 'TripyTravy', 'event_photos'));
+        if (!await photosDir.exists()) {
+          await photosDir.create(recursive: true);
+        }
+        final fileName =
+            'pasted_${DateTime.now().millisecondsSinceEpoch}_${imageBytes.length.hashCode.abs()}.png';
+        final savedFile = File(p.join(photosDir.path, fileName));
+        await savedFile.writeAsBytes(imageBytes);
+
+        if (mounted) {
+          setState(() {
+            _photosList.add(savedFile.path);
+            _errorMessage = null;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pasted image from clipboard into Photos & Images'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      final files = await Pasteboard.files();
+      if (files.isNotEmpty) {
+        final added = <String>[];
+        for (final filePath in files) {
+          final ext = p.extension(filePath).replaceFirst('.', '').toLowerCase();
+          if (supportedImageExtensions.contains(ext)) {
+            final saved = await ItineraryDatabase.saveEventPhotoToAppStorage(filePath);
+            if (!_photosList.contains(saved)) {
+              added.add(saved);
+            }
+          }
+        }
+        if (added.isNotEmpty && mounted) {
+          setState(() {
+            _photosList.addAll(added);
+            _errorMessage = null;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Pasted ${added.length} image(s) from clipboard'),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _viewPhoto(String photoPath) {
+    showDialog(
+      context: context,
+      builder: (ctx) => DedicatedImageViewerDialog(
+        imagePath: photoPath,
+        title: _titleController.text.trim().isNotEmpty
+            ? _titleController.text.trim()
+            : 'Photo Preview',
+      ),
+    );
+  }
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _mapsUrlController = TextEditingController();
@@ -1041,6 +1275,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _dialogFocusNode.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
     _mapsUrlController.dispose();
@@ -1667,12 +1902,21 @@ class _AddEventDialogState extends State<AddEventDialog> {
     final totalAttachmentsCount =
         _existingAttachments.length + _attachedFiles.length;
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-      child: Container(
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyV, control: true): () {
+          _pasteImageFromClipboard();
+        },
+      },
+      child: Focus(
+        focusNode: _dialogFocusNode,
+        autofocus: true,
+        child: Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+          child: Container(
         width: 820,
         constraints:
             BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.90),
@@ -2027,58 +2271,60 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                 ),
                               ),
                               if (_photosList.isNotEmpty) ...[
-                                const SizedBox(height: 12),
-                                Wrap(
-                                  spacing: 12,
-                                  runSpacing: 12,
-                                  children:
-                                      _photosList.asMap().entries.map((entry) {
-                                    final idx = entry.key;
-                                    final path = entry.value;
-                                    final file = File(path);
-                                    return Stack(
-                                      children: [
-                                        Container(
-                                          width: 90,
-                                          height: 70,
-                                          decoration: BoxDecoration(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                            border: Border.all(
-                                                color: const Color(0xFFCBD5E1)),
-                                            color: const Color(0xFFF1F5F9),
-                                          ),
-                                          clipBehavior: Clip.antiAlias,
-                                          child: path.startsWith('assets/')
-                                              ? Image.asset(path,
-                                                  fit: BoxFit.cover)
-                                              : (file.existsSync()
-                                                  ? Image.file(file,
-                                                      fit: BoxFit.cover)
-                                                  : const Icon(Icons.image,
-                                                      color:
-                                                          Color(0xFF94A3B8))),
-                                        ),
-                                        Positioned(
-                                          top: 2,
-                                          right: 2,
-                                          child: InkWell(
-                                            onTap: () => setState(() =>
-                                                _photosList.removeAt(idx)),
-                                            child: Container(
-                                              padding: const EdgeInsets.all(2),
-                                              decoration: const BoxDecoration(
-                                                  color: Colors.black54,
-                                                  shape: BoxShape.circle),
-                                              child: const Icon(Icons.close,
-                                                  color: Colors.white,
-                                                  size: 14),
+                                const SizedBox(height: 14),
+                                SizedBox(
+                                  height: 85,
+                                  child: ListView.separated(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: _photosList.length,
+                                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                                    itemBuilder: (context, idx) {
+                                      final path = _photosList[idx];
+                                      final file = File(path);
+                                      return Tooltip(
+                                        message: 'Click to preview • Click X to remove',
+                                        child: Stack(
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            InkWell(
+                                              onTap: () => _viewPhoto(path),
+                                              borderRadius: BorderRadius.circular(10),
+                                              child: Container(
+                                                width: 105,
+                                                height: 80,
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                                                  color: const Color(0xFFF1F5F9),
+                                                ),
+                                                clipBehavior: Clip.antiAlias,
+                                                child: path.startsWith('assets/')
+                                                    ? Image.asset(path, fit: BoxFit.cover)
+                                                    : (file.existsSync()
+                                                        ? Image.file(file, fit: BoxFit.cover)
+                                                        : const Icon(Icons.image, color: Color(0xFF94A3B8))),
+                                              ),
                                             ),
-                                          ),
+                                            Positioned(
+                                              top: -4,
+                                              right: -4,
+                                              child: InkWell(
+                                                onTap: () => setState(() => _photosList.removeAt(idx)),
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(3),
+                                                  decoration: const BoxDecoration(
+                                                    color: Color(0xFF0F172A),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: const Icon(Icons.close, color: Colors.white, size: 12),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    );
-                                  }).toList(),
+                                      );
+                                    },
+                                  ),
                                 ),
                               ],
                             ],
@@ -2221,6 +2467,8 @@ class _AddEventDialogState extends State<AddEventDialog> {
             ),
           ],
         ),
+      ),
+    ),
       ),
     );
   }
