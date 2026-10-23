@@ -187,6 +187,7 @@ class TripEventItem {
   final double? longitude;
   final String? mapUrl;
   final String? attachmentsJson; // Attached document vouchers, passes, tickets
+  final String? flightDataJson; // Structured Flight details (route, times, stops, booking, status)
   final String category; // 'Activity', 'Lodging', 'Transportation', 'Info'
   final String subCategory; // e.g. 'Attraction', 'Check-in', 'Flight', etc.
   final String? subDetail; // e.g. 'Departure', 'Arrival' (for Transportation)
@@ -212,6 +213,7 @@ class TripEventItem {
     this.longitude,
     this.mapUrl,
     this.attachmentsJson,
+    this.flightDataJson,
     this.category = 'Activity',
     this.subCategory = 'Activity',
     this.subDetail,
@@ -259,6 +261,7 @@ class TripEventItem {
       'longitude': longitude,
       'map_url': mapUrl,
       'attachments_json': attachmentsJson,
+      'flight_data_json': flightDataJson,
       'category': category,
       'sub_category': subCategory,
       'sub_detail': subDetail,
@@ -307,6 +310,7 @@ class TripEventItem {
       longitude: (map['longitude'] as num?)?.toDouble(),
       mapUrl: map['map_url'] as String?,
       attachmentsJson: map['attachments_json'] as String?,
+      flightDataJson: map['flight_data_json'] as String?,
       category: map['category'] as String? ?? 'Activity',
       subCategory: map['sub_category'] as String? ?? 'Activity',
       subDetail: map['sub_detail'] as String?,
@@ -334,6 +338,7 @@ class TripEventItem {
     double? longitude,
     String? mapUrl,
     String? attachmentsJson,
+    String? flightDataJson,
     String? category,
     String? subCategory,
     String? subDetail,
@@ -359,6 +364,7 @@ class TripEventItem {
       longitude: longitude ?? this.longitude,
       mapUrl: mapUrl ?? this.mapUrl,
       attachmentsJson: attachmentsJson ?? this.attachmentsJson,
+      flightDataJson: flightDataJson ?? this.flightDataJson,
       category: category ?? this.category,
       subCategory: subCategory ?? this.subCategory,
       subDetail: subDetail ?? this.subDetail,
@@ -775,6 +781,7 @@ class ItineraryDatabase {
       'longitude REAL',
       'map_url TEXT',
       'attachments_json TEXT',
+      'flight_data_json TEXT',
       'category TEXT NOT NULL DEFAULT "Activity"',
       'sub_category TEXT',
       'sub_detail TEXT',
@@ -828,6 +835,7 @@ class ItineraryDatabase {
         longitude REAL,
         map_url TEXT,
         attachments_json TEXT,
+        flight_data_json TEXT,
         FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE,
         FOREIGN KEY (day_id) REFERENCES itinerary_days(id) ON DELETE CASCADE
       )

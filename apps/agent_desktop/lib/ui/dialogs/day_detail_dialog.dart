@@ -736,6 +736,172 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
     );
   }
 
+  Widget _buildFlightSummaryCard(TripEventItem event) {
+    if (event.flightDataJson == null || event.flightDataJson!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    try {
+      final flight = jsonDecode(event.flightDataJson!) as Map<String, dynamic>;
+      final from = flight['from'] as String? ?? '';
+      final depDate = flight['depDate'] as String? ?? '';
+      final depTime = flight['depTime'] as String? ?? '';
+      final airline = flight['airline'] as String? ?? '';
+      final flightNo = flight['flightNo'] as String? ?? '';
+      final seat = flight['seat'] as String? ?? '';
+      final bookingCode = flight['bookingCode'] as String? ?? '';
+      final status = flight['status'] as String? ?? 'Confirmed';
+      final stops = (flight['stops'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+
+      Color statusBg = const Color(0xFFEFF6FF);
+      Color statusBorder = const Color(0xFFBFDBFE);
+      Color statusText = const Color(0xFF1D4ED8);
+      if (status == 'Pending') {
+        statusBg = const Color(0xFFFEF3C7);
+        statusBorder = const Color(0xFFFDE68A);
+        statusText = const Color(0xFFD97706);
+      } else if (status == 'Cancelled') {
+        statusBg = const Color(0xFFFEF2F2);
+        statusBorder = const Color(0xFFFECACA);
+        statusText = const Color(0xFFDC2626);
+      }
+
+      return Container(
+        margin: const EdgeInsets.only(top: 14),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top route & status badge
+            Row(
+              children: [
+                const Icon(Icons.flight_takeoff_rounded, size: 18, color: Color(0xFF0284C7)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    from.isNotEmpty ? from : 'Flight Route',
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: statusBorder),
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      color: statusText,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Departure details, airline, flight no, seat
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                if (depDate.isNotEmpty || depTime.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF64748B)),
+                      const SizedBox(width: 5),
+                      Text(
+                        [depDate, depTime].where((s) => s.isNotEmpty).join(' · '),
+                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                if (airline.isNotEmpty || flightNo.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.airplanemode_active_rounded, size: 14, color: Color(0xFF64748B)),
+                      const SizedBox(width: 5),
+                      Text(
+                        [airline, flightNo].where((s) => s.isNotEmpty).join(' '),
+                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                if (seat.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.event_seat_rounded, size: 14, color: Color(0xFF64748B)),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Seat $seat',
+                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                if (bookingCode.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.confirmation_number_outlined, size: 14, color: Color(0xFF64748B)),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Booking: $bookingCode',
+                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            if (stops.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: stops.map((st) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.place_outlined, size: 12, color: Color(0xFF64748B)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Stop: $st',
+                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569), fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ],
+        ),
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+  }
+
   Widget _buildEventCard(TripEventItem event) {
     final hasAttachments = event.attachments.isNotEmpty;
     final hasPhotos = event.photos.isNotEmpty;
@@ -843,6 +1009,9 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
                   fontSize: 14.5, color: Color(0xFF334155), height: 1.55),
             ),
           ],
+
+          // Flight Details Summary (if category is Flight)
+          _buildFlightSummaryCard(event),
 
           // Location Card (if present)
           if (event.hasLocation ||
@@ -1232,6 +1401,17 @@ class _AddEventDialogState extends State<AddEventDialog> {
   final _descriptionController = TextEditingController();
   final _mapsUrlController = TextEditingController();
 
+  // Flight specific feature controllers
+  final _flightFromController = TextEditingController();
+  final _flightDepDateController = TextEditingController();
+  final _flightDepTimeController = TextEditingController();
+  final _flightAirlineController = TextEditingController();
+  final _flightNoController = TextEditingController();
+  final _flightSeatController = TextEditingController();
+  final _flightBookingCodeController = TextEditingController();
+  String _flightStatus = 'Confirmed';
+  final List<TextEditingController> _flightStopControllers = [];
+
   final List<PlatformFile> _attachedFiles = [];
   List<Map<String, String>> _existingAttachments = [];
   final List<String> _photosList = [];
@@ -1259,6 +1439,24 @@ class _AddEventDialogState extends State<AddEventDialog> {
       _mapsUrlController.text = e.mapUrl ?? '';
       _photosList.addAll(e.photos);
 
+      if (e.flightDataJson != null && e.flightDataJson!.isNotEmpty) {
+        try {
+          final f = jsonDecode(e.flightDataJson!) as Map<String, dynamic>;
+          _flightFromController.text = f['from'] as String? ?? '';
+          _flightDepDateController.text = f['depDate'] as String? ?? '';
+          _flightDepTimeController.text = f['depTime'] as String? ?? '';
+          _flightAirlineController.text = f['airline'] as String? ?? '';
+          _flightNoController.text = f['flightNo'] as String? ?? '';
+          _flightSeatController.text = f['seat'] as String? ?? '';
+          _flightBookingCodeController.text = f['bookingCode'] as String? ?? '';
+          _flightStatus = f['status'] as String? ?? 'Confirmed';
+          final stops = f['stops'] as List<dynamic>? ?? [];
+          for (final st in stops) {
+            _flightStopControllers.add(TextEditingController(text: st.toString()));
+          }
+        } catch (_) {}
+      }
+
       if (e.hasLocation || e.hasCoordinates) {
         _fetchedLocation = GoogleMapsLocation(
           locationName: e.locationName ?? e.location,
@@ -1275,6 +1473,16 @@ class _AddEventDialogState extends State<AddEventDialog> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _flightFromController.dispose();
+    _flightDepDateController.dispose();
+    _flightDepTimeController.dispose();
+    _flightAirlineController.dispose();
+    _flightNoController.dispose();
+    _flightSeatController.dispose();
+    _flightBookingCodeController.dispose();
+    for (final c in _flightStopControllers) {
+      c.dispose();
+    }
     _dialogFocusNode.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
@@ -1425,6 +1633,25 @@ class _AddEventDialogState extends State<AddEventDialog> {
 
     final attachmentsJson =
         combinedAttachments.isNotEmpty ? jsonEncode(combinedAttachments) : null;
+    String? flightDataJson;
+    if (_selectedCategory == 'Transportation' && _selectedSubCategory == 'Flight') {
+      final stopsList = _flightStopControllers
+          .map((c) => c.text.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+      final flightMap = {
+        'from': _flightFromController.text.trim(),
+        'depDate': _flightDepDateController.text.trim(),
+        'depTime': _flightDepTimeController.text.trim(),
+        'airline': _flightAirlineController.text.trim(),
+        'flightNo': _flightNoController.text.trim(),
+        'seat': _flightSeatController.text.trim(),
+        'stops': stopsList,
+        'bookingCode': _flightBookingCodeController.text.trim(),
+        'status': _flightStatus,
+      };
+      flightDataJson = jsonEncode(flightMap);
+    }
 
     final event = TripEventItem(
       id: widget.eventToEdit?.id ??
@@ -1456,6 +1683,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
           ? null
           : _mapsUrlController.text.trim(),
       attachmentsJson: attachmentsJson,
+      flightDataJson: flightDataJson,
     );
 
     try {
@@ -1660,6 +1888,354 @@ class _AddEventDialogState extends State<AddEventDialog> {
           ),
         );
       }).toList(),
+    );
+  }
+
+
+  Widget _buildFlightFeaturesSection() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 22),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBAE6FD), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.flight_takeoff_rounded, color: Color(0xFF0284C7), size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'ROUTE & FLIGHT DETAILS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.9,
+                  color: Color(0xFF0284C7),
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                'Flight Features',
+                style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // FROM row
+          Row(
+            children: [
+              const SizedBox(
+                width: 90,
+                child: Text(
+                  'FROM',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                ),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _flightFromController,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.flight_takeoff_rounded, size: 18, color: Color(0xFF64748B)),
+                    hintText: 'Airport code or city (e.g. FRA)',
+                    hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13.5),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // DEPARTURE date & DEP. TIME
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('DEPARTURE', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _flightDepDateController,
+                      decoration: InputDecoration(
+                        hintText: 'dd-mm-yyyy',
+                        suffixIcon: const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF64748B)),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('DEP. TIME', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _flightDepTimeController,
+                      decoration: InputDecoration(
+                        hintText: '2:30 PM',
+                        suffixIcon: const Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF64748B)),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // AIRLINE, FLIGHT NO, SEAT
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('AIRLINE', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _flightAirlineController,
+                      decoration: InputDecoration(
+                        hintText: 'Lufthansa',
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('FLIGHT NO.', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _flightNoController,
+                      decoration: InputDecoration(
+                        hintText: 'LH 123',
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('SEAT', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _flightSeatController,
+                      decoration: InputDecoration(
+                        hintText: '12A',
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Dynamic Stops list
+          if (_flightStopControllers.isNotEmpty) ...[
+            Column(
+              children: _flightStopControllers.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final ctrl = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 90,
+                        child: Text(
+                          'STOP ${idx + 1}',
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                        ),
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: ctrl,
+                          decoration: InputDecoration(
+                            hintText: 'Layover city / airport code (e.g. MUC)',
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFEF4444), size: 20),
+                        onPressed: () {
+                          setState(() {
+                            _flightStopControllers.removeAt(idx);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 6),
+          ],
+
+          // + Add stop button
+          InkWell(
+            onTap: () {
+              setState(() {
+                _flightStopControllers.add(TextEditingController());
+              });
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFCBD5E1), style: BorderStyle.solid),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add, size: 16, color: Color(0xFF64748B)),
+                  SizedBox(width: 6),
+                  Text(
+                    'Add stop',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // BOOKING CODE & STATUS
+          Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('BOOKING CODE', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _flightBookingCodeController,
+                      decoration: InputDecoration(
+                        hintText: 'e.g. ABC12345',
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                flex: 4,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('STATUS', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _flightStatus,
+                          isExpanded: true,
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B)),
+                          items: const [
+                            DropdownMenuItem(value: 'Confirmed', child: Text('Confirmed')),
+                            DropdownMenuItem(value: 'Pending', child: Text('Pending')),
+                            DropdownMenuItem(value: 'Cancelled', child: Text('Cancelled')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) setState(() => _flightStatus = val);
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -2013,6 +2589,9 @@ class _AddEventDialogState extends State<AddEventDialog> {
                     // Sub-Category Selector
                     _buildSubCategorySelector(),
                     const SizedBox(height: 22),
+                    if (_selectedCategory == 'Transportation' && _selectedSubCategory == 'Flight') ...[
+                      _buildFlightFeaturesSection(),
+                    ],
                     const Divider(height: 1, color: Color(0xFFF1F5F9)),
                     const SizedBox(height: 22),
 
