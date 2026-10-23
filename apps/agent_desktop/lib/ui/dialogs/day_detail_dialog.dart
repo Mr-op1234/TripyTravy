@@ -783,10 +783,10 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
       if (event.subCategory == 'Flight') routeIcon = Icons.flight_takeoff_rounded;
       if (event.subCategory == 'Train') routeIcon = Icons.train_rounded;
       if (event.subCategory == 'Bus') routeIcon = Icons.directions_bus_rounded;
-      if (event.subCategory == 'Car') routeIcon = Icons.directions_car_rounded;
+      if (event.subCategory == 'Car/Taxi' || event.subCategory == 'Car' || event.subCategory == 'Taxi') routeIcon = Icons.directions_car_rounded;
       if (event.subCategory.contains('Cruise') || event.subCategory.contains('Ferry')) routeIcon = Icons.directions_boat_rounded;
-      if (event.subCategory == 'Taxi') routeIcon = Icons.local_taxi_rounded;
-      if (event.subCategory == 'Bicycle') routeIcon = Icons.pedal_bike_rounded;
+
+      final vehicleNo = data['vehicleNo'] as String? ?? '';
 
       return Container(
         margin: const EdgeInsets.only(top: 14),
@@ -893,6 +893,18 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
                       const SizedBox(width: 5),
                       Text(
                         'Seat $seat',
+                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                if (vehicleNo.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.directions_car_filled_outlined, size: 14, color: Color(0xFF64748B)),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Vehicle: $vehicleNo',
                         style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -1446,13 +1458,14 @@ class _AddEventDialogState extends State<AddEventDialog> {
   final _descriptionController = TextEditingController();
   final _mapsUrlController = TextEditingController();
 
-  // Transportation feature controllers (Flight, Train, Bus, Car, Taxi, Bicycle, Cruise/Ferry, Other)
+  // Transportation feature controllers (Flight, Train, Bus, Car/Taxi, Cruise/Ferry, Other)
   final _transFromController = TextEditingController();
   final _transDepDateController = TextEditingController();
   final _transDepTimeController = TextEditingController();
   final _transAirlineController = TextEditingController();
   final _transFlightNoController = TextEditingController();
   final _transTrainNoController = TextEditingController();
+  final _transVehicleNoController = TextEditingController();
   final _transPlatformController = TextEditingController();
   final _transSeatController = TextEditingController();
   final _transBookingCodeController = TextEditingController();
@@ -1495,6 +1508,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
           _transAirlineController.text = f['airline'] as String? ?? '';
           _transFlightNoController.text = f['flightNo'] as String? ?? '';
           _transTrainNoController.text = f['trainNo'] as String? ?? '';
+          _transVehicleNoController.text = f['vehicleNo'] as String? ?? '';
           _transPlatformController.text = f['platform'] as String? ?? '';
           _transSeatController.text = f['seat'] as String? ?? '';
           _transBookingCodeController.text = f['bookingCode'] as String? ?? '';
@@ -1528,6 +1542,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
     _transAirlineController.dispose();
     _transFlightNoController.dispose();
     _transTrainNoController.dispose();
+    _transVehicleNoController.dispose();
     _transPlatformController.dispose();
     _transSeatController.dispose();
     _transBookingCodeController.dispose();
@@ -1697,6 +1712,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
         'airline': _transAirlineController.text.trim(),
         'flightNo': _transFlightNoController.text.trim(),
         'trainNo': _transTrainNoController.text.trim(),
+        'vehicleNo': _transVehicleNoController.text.trim(),
         'platform': _transPlatformController.text.trim(),
         'seat': _transSeatController.text.trim(),
         'stops': stopsList,
@@ -1950,7 +1966,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
     final sub = _selectedSubCategory;
     final isFlight = sub == 'Flight';
     final isTrain = sub == 'Train';
-    final isCar = sub == 'Car';
+    final isCarTaxi = sub == 'Car/Taxi' || sub == 'Car' || sub == 'Taxi';
     final isBus = sub == 'Bus';
 
     String dateLabel = 'DATE';
@@ -1966,7 +1982,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
     } else if (isTrain) {
       dateLabel = 'DEPARTURE';
       timeLabel = 'DEP. TIME';
-    } else if (isCar) {
+    } else if (isCarTaxi) {
       dateLabel = 'PICKUP';
       timeLabel = 'PICKUP TIME';
     }
@@ -1985,7 +2001,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
           Row(
             children: [
               Icon(
-                isFlight ? Icons.flight_takeoff_rounded : (isTrain ? Icons.train_rounded : (isCar ? Icons.directions_car_rounded : (isBus ? Icons.directions_bus_rounded : Icons.directions_transit_rounded))),
+                isFlight ? Icons.flight_takeoff_rounded : (isTrain ? Icons.train_rounded : (isCarTaxi ? Icons.directions_car_rounded : (isBus ? Icons.directions_bus_rounded : Icons.directions_transit_rounded))),
                 color: const Color(0xFF0284C7),
                 size: 20,
               ),
@@ -2169,6 +2185,36 @@ class _AddEventDialogState extends State<AddEventDialog> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          // Bus or Car/Taxi Specific (VEHICLE NO.)
+          if (isBus || isCarTaxi) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const SizedBox(
+                  width: 90,
+                  child: Text(
+                    'VEHICLE NO.',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                  ),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _transVehicleNoController,
+                    decoration: InputDecoration(
+                      hintText: isBus ? 'e.g. Bus #42 or Plate 82-ABC' : 'e.g. Plate # or Taxi ID (e.g. NY-7890)',
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                    ),
                   ),
                 ),
               ],
@@ -2439,9 +2485,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
       {'name': 'Flight', 'icon': Icons.flight_rounded},
       {'name': 'Train', 'icon': Icons.train_rounded},
       {'name': 'Bus', 'icon': Icons.directions_bus_rounded},
-      {'name': 'Car', 'icon': Icons.directions_car_rounded},
-      {'name': 'Taxi', 'icon': Icons.local_taxi_rounded},
-      {'name': 'Bicycle', 'icon': Icons.pedal_bike_rounded},
+      {'name': 'Car/Taxi', 'icon': Icons.directions_car_rounded},
       {'name': 'Cruise/Ferry', 'icon': Icons.directions_boat_rounded},
       {'name': 'Other', 'icon': Icons.alt_route_rounded},
     ];
