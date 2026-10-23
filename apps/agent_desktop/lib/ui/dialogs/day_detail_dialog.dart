@@ -654,11 +654,23 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
       icon = Icons.hotel_rounded;
     } else if (event.category == 'Transportation') {
       bg = const Color(0xFF0284C7);
-      icon = event.subCategory == 'Flight'
-          ? Icons.flight_rounded
-          : (event.subCategory == 'Train'
-              ? Icons.train_rounded
-              : Icons.directions_car_rounded);
+      if (event.subCategory == 'Flight') {
+        icon = Icons.flight_rounded;
+      } else if (event.subCategory == 'Train') {
+        icon = Icons.train_rounded;
+      } else if (event.subCategory == 'Bus') {
+        icon = Icons.directions_bus_rounded;
+      } else if (event.subCategory == 'Car') {
+        icon = Icons.directions_car_rounded;
+      } else if (event.subCategory.contains('Cruise') || event.subCategory.contains('Ferry')) {
+        icon = Icons.directions_boat_rounded;
+      } else if (event.subCategory == 'Bicycle') {
+        icon = Icons.pedal_bike_rounded;
+      } else if (event.subCategory == 'Taxi') {
+        icon = Icons.local_taxi_rounded;
+      } else {
+        icon = Icons.alt_route_rounded;
+      }
     } else if (event.category == 'Info') {
       bg = const Color(0xFF4F46E5);
       icon = Icons.info_outline_rounded;
@@ -736,21 +748,23 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
     );
   }
 
-  Widget _buildFlightSummaryCard(TripEventItem event) {
+  Widget _buildTransportationSummaryCard(TripEventItem event) {
     if (event.flightDataJson == null || event.flightDataJson!.isEmpty) {
       return const SizedBox.shrink();
     }
     try {
-      final flight = jsonDecode(event.flightDataJson!) as Map<String, dynamic>;
-      final from = flight['from'] as String? ?? '';
-      final depDate = flight['depDate'] as String? ?? '';
-      final depTime = flight['depTime'] as String? ?? '';
-      final airline = flight['airline'] as String? ?? '';
-      final flightNo = flight['flightNo'] as String? ?? '';
-      final seat = flight['seat'] as String? ?? '';
-      final bookingCode = flight['bookingCode'] as String? ?? '';
-      final status = flight['status'] as String? ?? 'Confirmed';
-      final stops = (flight['stops'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+      final data = jsonDecode(event.flightDataJson!) as Map<String, dynamic>;
+      final from = data['from'] as String? ?? '';
+      final depDate = data['depDate'] as String? ?? '';
+      final depTime = data['depTime'] as String? ?? '';
+      final airline = data['airline'] as String? ?? '';
+      final flightNo = data['flightNo'] as String? ?? '';
+      final trainNo = data['trainNo'] as String? ?? '';
+      final platform = data['platform'] as String? ?? '';
+      final seat = data['seat'] as String? ?? '';
+      final bookingCode = data['bookingCode'] as String? ?? '';
+      final status = data['status'] as String? ?? 'Confirmed';
+      final stops = (data['stops'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
 
       Color statusBg = const Color(0xFFEFF6FF);
       Color statusBorder = const Color(0xFFBFDBFE);
@@ -765,6 +779,15 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
         statusText = const Color(0xFFDC2626);
       }
 
+      IconData routeIcon = Icons.directions_transit_rounded;
+      if (event.subCategory == 'Flight') routeIcon = Icons.flight_takeoff_rounded;
+      if (event.subCategory == 'Train') routeIcon = Icons.train_rounded;
+      if (event.subCategory == 'Bus') routeIcon = Icons.directions_bus_rounded;
+      if (event.subCategory == 'Car') routeIcon = Icons.directions_car_rounded;
+      if (event.subCategory.contains('Cruise') || event.subCategory.contains('Ferry')) routeIcon = Icons.directions_boat_rounded;
+      if (event.subCategory == 'Taxi') routeIcon = Icons.local_taxi_rounded;
+      if (event.subCategory == 'Bicycle') routeIcon = Icons.pedal_bike_rounded;
+
       return Container(
         margin: const EdgeInsets.only(top: 14),
         padding: const EdgeInsets.all(16),
@@ -776,14 +799,13 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top route & status badge
             Row(
               children: [
-                const Icon(Icons.flight_takeoff_rounded, size: 18, color: Color(0xFF0284C7)),
+                Icon(routeIcon, size: 18, color: const Color(0xFF0284C7)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    from.isNotEmpty ? from : 'Flight Route',
+                    from.isNotEmpty ? from : '${event.subCategory} Route',
                     style: const TextStyle(
                       fontSize: 14.5,
                       fontWeight: FontWeight.bold,
@@ -811,7 +833,6 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
               ],
             ),
             const SizedBox(height: 12),
-            // Departure details, airline, flight no, seat
             Wrap(
               spacing: 16,
               runSpacing: 8,
@@ -836,6 +857,30 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
                       const SizedBox(width: 5),
                       Text(
                         [airline, flightNo].where((s) => s.isNotEmpty).join(' '),
+                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                if (trainNo.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.train_outlined, size: 14, color: Color(0xFF64748B)),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Train: $trainNo',
+                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                if (platform.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.meeting_room_outlined, size: 14, color: Color(0xFF64748B)),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Platform $platform',
                         style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -1011,7 +1056,7 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
           ],
 
           // Flight Details Summary (if category is Flight)
-          _buildFlightSummaryCard(event),
+          _buildTransportationSummaryCard(event),
 
           // Location Card (if present)
           if (event.hasLocation ||
@@ -1401,16 +1446,18 @@ class _AddEventDialogState extends State<AddEventDialog> {
   final _descriptionController = TextEditingController();
   final _mapsUrlController = TextEditingController();
 
-  // Flight specific feature controllers
-  final _flightFromController = TextEditingController();
-  final _flightDepDateController = TextEditingController();
-  final _flightDepTimeController = TextEditingController();
-  final _flightAirlineController = TextEditingController();
-  final _flightNoController = TextEditingController();
-  final _flightSeatController = TextEditingController();
-  final _flightBookingCodeController = TextEditingController();
-  String _flightStatus = 'Confirmed';
-  final List<TextEditingController> _flightStopControllers = [];
+  // Transportation feature controllers (Flight, Train, Bus, Car, Taxi, Bicycle, Cruise/Ferry, Other)
+  final _transFromController = TextEditingController();
+  final _transDepDateController = TextEditingController();
+  final _transDepTimeController = TextEditingController();
+  final _transAirlineController = TextEditingController();
+  final _transFlightNoController = TextEditingController();
+  final _transTrainNoController = TextEditingController();
+  final _transPlatformController = TextEditingController();
+  final _transSeatController = TextEditingController();
+  final _transBookingCodeController = TextEditingController();
+  String _transStatus = 'Pending';
+  final List<TextEditingController> _transStopControllers = [];
 
   final List<PlatformFile> _attachedFiles = [];
   List<Map<String, String>> _existingAttachments = [];
@@ -1442,17 +1489,19 @@ class _AddEventDialogState extends State<AddEventDialog> {
       if (e.flightDataJson != null && e.flightDataJson!.isNotEmpty) {
         try {
           final f = jsonDecode(e.flightDataJson!) as Map<String, dynamic>;
-          _flightFromController.text = f['from'] as String? ?? '';
-          _flightDepDateController.text = f['depDate'] as String? ?? '';
-          _flightDepTimeController.text = f['depTime'] as String? ?? '';
-          _flightAirlineController.text = f['airline'] as String? ?? '';
-          _flightNoController.text = f['flightNo'] as String? ?? '';
-          _flightSeatController.text = f['seat'] as String? ?? '';
-          _flightBookingCodeController.text = f['bookingCode'] as String? ?? '';
-          _flightStatus = f['status'] as String? ?? 'Confirmed';
+          _transFromController.text = f['from'] as String? ?? '';
+          _transDepDateController.text = f['depDate'] as String? ?? '';
+          _transDepTimeController.text = f['depTime'] as String? ?? '';
+          _transAirlineController.text = f['airline'] as String? ?? '';
+          _transFlightNoController.text = f['flightNo'] as String? ?? '';
+          _transTrainNoController.text = f['trainNo'] as String? ?? '';
+          _transPlatformController.text = f['platform'] as String? ?? '';
+          _transSeatController.text = f['seat'] as String? ?? '';
+          _transBookingCodeController.text = f['bookingCode'] as String? ?? '';
+          _transStatus = f['status'] as String? ?? 'Pending';
           final stops = f['stops'] as List<dynamic>? ?? [];
           for (final st in stops) {
-            _flightStopControllers.add(TextEditingController(text: st.toString()));
+            _transStopControllers.add(TextEditingController(text: st.toString()));
           }
         } catch (_) {}
       }
@@ -1473,14 +1522,16 @@ class _AddEventDialogState extends State<AddEventDialog> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
-    _flightFromController.dispose();
-    _flightDepDateController.dispose();
-    _flightDepTimeController.dispose();
-    _flightAirlineController.dispose();
-    _flightNoController.dispose();
-    _flightSeatController.dispose();
-    _flightBookingCodeController.dispose();
-    for (final c in _flightStopControllers) {
+    _transFromController.dispose();
+    _transDepDateController.dispose();
+    _transDepTimeController.dispose();
+    _transAirlineController.dispose();
+    _transFlightNoController.dispose();
+    _transTrainNoController.dispose();
+    _transPlatformController.dispose();
+    _transSeatController.dispose();
+    _transBookingCodeController.dispose();
+    for (final c in _transStopControllers) {
       c.dispose();
     }
     _dialogFocusNode.dispose();
@@ -1634,23 +1685,25 @@ class _AddEventDialogState extends State<AddEventDialog> {
     final attachmentsJson =
         combinedAttachments.isNotEmpty ? jsonEncode(combinedAttachments) : null;
     String? flightDataJson;
-    if (_selectedCategory == 'Transportation' && _selectedSubCategory == 'Flight') {
-      final stopsList = _flightStopControllers
+    if (_selectedCategory == 'Transportation') {
+      final stopsList = _transStopControllers
           .map((c) => c.text.trim())
           .where((s) => s.isNotEmpty)
           .toList();
-      final flightMap = {
-        'from': _flightFromController.text.trim(),
-        'depDate': _flightDepDateController.text.trim(),
-        'depTime': _flightDepTimeController.text.trim(),
-        'airline': _flightAirlineController.text.trim(),
-        'flightNo': _flightNoController.text.trim(),
-        'seat': _flightSeatController.text.trim(),
+      final transMap = {
+        'from': _transFromController.text.trim(),
+        'depDate': _transDepDateController.text.trim(),
+        'depTime': _transDepTimeController.text.trim(),
+        'airline': _transAirlineController.text.trim(),
+        'flightNo': _transFlightNoController.text.trim(),
+        'trainNo': _transTrainNoController.text.trim(),
+        'platform': _transPlatformController.text.trim(),
+        'seat': _transSeatController.text.trim(),
         'stops': stopsList,
-        'bookingCode': _flightBookingCodeController.text.trim(),
-        'status': _flightStatus,
+        'bookingCode': _transBookingCodeController.text.trim(),
+        'status': _transStatus,
       };
-      flightDataJson = jsonEncode(flightMap);
+      flightDataJson = jsonEncode(transMap);
     }
 
     final event = TripEventItem(
@@ -1892,7 +1945,32 @@ class _AddEventDialogState extends State<AddEventDialog> {
   }
 
 
-  Widget _buildFlightFeaturesSection() {
+
+  Widget _buildTransportationFeaturesSection() {
+    final sub = _selectedSubCategory;
+    final isFlight = sub == 'Flight';
+    final isTrain = sub == 'Train';
+    final isCar = sub == 'Car';
+    final isBus = sub == 'Bus';
+
+    String dateLabel = 'DATE';
+    String timeLabel = 'START TIME';
+    String fromHint = 'Search station, port, address...';
+    IconData fromIcon = Icons.place_outlined;
+
+    if (isFlight) {
+      dateLabel = 'DEPARTURE';
+      timeLabel = 'DEP. TIME';
+      fromHint = 'Airport code or city (e.g. FRA)';
+      fromIcon = Icons.flight_takeoff_rounded;
+    } else if (isTrain) {
+      dateLabel = 'DEPARTURE';
+      timeLabel = 'DEP. TIME';
+    } else if (isCar) {
+      dateLabel = 'PICKUP';
+      timeLabel = 'PICKUP TIME';
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 22),
       padding: const EdgeInsets.all(20),
@@ -1906,11 +1984,15 @@ class _AddEventDialogState extends State<AddEventDialog> {
         children: [
           Row(
             children: [
-              const Icon(Icons.flight_takeoff_rounded, color: Color(0xFF0284C7), size: 20),
+              Icon(
+                isFlight ? Icons.flight_takeoff_rounded : (isTrain ? Icons.train_rounded : (isCar ? Icons.directions_car_rounded : (isBus ? Icons.directions_bus_rounded : Icons.directions_transit_rounded))),
+                color: const Color(0xFF0284C7),
+                size: 20,
+              ),
               const SizedBox(width: 8),
-              const Text(
-                'ROUTE & FLIGHT DETAILS',
-                style: TextStyle(
+              Text(
+                isFlight ? 'ROUTE & FLIGHT' : 'ROUTE',
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.9,
@@ -1918,9 +2000,9 @@ class _AddEventDialogState extends State<AddEventDialog> {
                 ),
               ),
               const Spacer(),
-              const Text(
-                'Flight Features',
-                style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+              Text(
+                '$sub Details',
+                style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
               ),
             ],
           ),
@@ -1938,10 +2020,10 @@ class _AddEventDialogState extends State<AddEventDialog> {
               ),
               Expanded(
                 child: TextField(
-                  controller: _flightFromController,
+                  controller: _transFromController,
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.flight_takeoff_rounded, size: 18, color: Color(0xFF64748B)),
-                    hintText: 'Airport code or city (e.g. FRA)',
+                    prefixIcon: Icon(fromIcon, size: 18, color: const Color(0xFF64748B)),
+                    hintText: fromHint,
                     hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13.5),
                     filled: true,
                     fillColor: Colors.white,
@@ -1965,17 +2047,17 @@ class _AddEventDialogState extends State<AddEventDialog> {
           ),
           const SizedBox(height: 14),
 
-          // DEPARTURE date & DEP. TIME
+          // DATE & TIME row
           Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('DEPARTURE', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    Text(dateLabel, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
                     const SizedBox(height: 6),
                     TextField(
-                      controller: _flightDepDateController,
+                      controller: _transDepDateController,
                       decoration: InputDecoration(
                         hintText: 'dd-mm-yyyy',
                         suffixIcon: const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF64748B)),
@@ -1995,10 +2077,10 @@ class _AddEventDialogState extends State<AddEventDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('DEP. TIME', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    Text(timeLabel, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
                     const SizedBox(height: 6),
                     TextField(
-                      controller: _flightDepTimeController,
+                      controller: _transDepTimeController,
                       decoration: InputDecoration(
                         hintText: '2:30 PM',
                         suffixIcon: const Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF64748B)),
@@ -2015,162 +2097,244 @@ class _AddEventDialogState extends State<AddEventDialog> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
 
-          // AIRLINE, FLIGHT NO, SEAT
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('AIRLINE', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _flightAirlineController,
-                      decoration: InputDecoration(
-                        hintText: 'Lufthansa',
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('FLIGHT NO.', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _flightNoController,
-                      decoration: InputDecoration(
-                        hintText: 'LH 123',
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('SEAT', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _flightSeatController,
-                      decoration: InputDecoration(
-                        hintText: '12A',
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Dynamic Stops list
-          if (_flightStopControllers.isNotEmpty) ...[
-            Column(
-              children: _flightStopControllers.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final ctrl = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
+          // Train Specific (TRAIN NO., PLATFORM, SEAT)
+          if (isTrain) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(
-                        width: 90,
-                        child: Text(
-                          'STOP ${idx + 1}',
-                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                      const Text('TRAIN NO.', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _transTrainNoController,
+                        decoration: InputDecoration(
+                          hintText: 'ICE 123',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
                         ),
-                      ),
-                      Expanded(
-                        child: TextField(
-                          controller: ctrl,
-                          decoration: InputDecoration(
-                            hintText: 'Layover city / airport code (e.g. MUC)',
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFEF4444), size: 20),
-                        onPressed: () {
-                          setState(() {
-                            _flightStopControllers.removeAt(idx);
-                          });
-                        },
                       ),
                     ],
                   ),
-                );
-              }).toList(),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('PLATFORM', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _transPlatformController,
+                        decoration: InputDecoration(
+                          hintText: '12',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('SEAT', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _transSeatController,
+                        decoration: InputDecoration(
+                          hintText: '42A',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
           ],
 
-          // + Add stop button
-          InkWell(
-            onTap: () {
-              setState(() {
-                _flightStopControllers.add(TextEditingController());
-              });
-            },
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFCBD5E1), style: BorderStyle.solid),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add, size: 16, color: Color(0xFF64748B)),
-                  SizedBox(width: 6),
-                  Text(
-                    'Add stop',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF475569),
-                    ),
+          // Flight Specific (AIRLINE, FLIGHT NO., SEAT)
+          if (isFlight) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('AIRLINE', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _transAirlineController,
+                        decoration: InputDecoration(
+                          hintText: 'Lufthansa',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('FLIGHT NO.', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _transFlightNoController,
+                        decoration: InputDecoration(
+                          hintText: 'LH 123',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('SEAT', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _transSeatController,
+                        decoration: InputDecoration(
+                          hintText: '12A',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          // Dynamic Stops list (for Flight & Train)
+          if (isFlight || isTrain) ...[
+            const SizedBox(height: 14),
+            if (_transStopControllers.isNotEmpty) ...[
+              Column(
+                children: _transStopControllers.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final ctrl = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 90,
+                          child: Text(
+                            'STOP ${idx + 1}',
+                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                          ),
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: ctrl,
+                            decoration: InputDecoration(
+                              hintText: isFlight ? 'Layover airport code (e.g. MUC)' : 'Intermediate station / stop',
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFEF4444), size: 20),
+                          onPressed: () {
+                            setState(() {
+                              _transStopControllers.removeAt(idx);
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 6),
+            ],
+
+            // + Add stop button
+            InkWell(
+              onTap: () {
+                setState(() {
+                  _transStopControllers.add(TextEditingController());
+                });
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFCBD5E1), style: BorderStyle.solid),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add, size: 16, color: Color(0xFF64748B)),
+                    SizedBox(width: 6),
+                    Text(
+                      'Add stop',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
+
           const SizedBox(height: 16),
 
           // BOOKING CODE & STATUS
@@ -2184,7 +2348,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                     const Text('BOOKING CODE', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
                     const SizedBox(height: 6),
                     TextField(
-                      controller: _flightBookingCodeController,
+                      controller: _transBookingCodeController,
                       decoration: InputDecoration(
                         hintText: 'e.g. ABC12345',
                         filled: true,
@@ -2215,7 +2379,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
-                          value: _flightStatus,
+                          value: _transStatus,
                           isExpanded: true,
                           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B)),
                           items: const [
@@ -2224,7 +2388,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                             DropdownMenuItem(value: 'Cancelled', child: Text('Cancelled')),
                           ],
                           onChanged: (val) {
-                            if (val != null) setState(() => _flightStatus = val);
+                            if (val != null) setState(() => _transStatus = val);
                           },
                         ),
                       ),
@@ -2278,8 +2442,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
       {'name': 'Car', 'icon': Icons.directions_car_rounded},
       {'name': 'Taxi', 'icon': Icons.local_taxi_rounded},
       {'name': 'Bicycle', 'icon': Icons.pedal_bike_rounded},
-      {'name': 'Cruise', 'icon': Icons.directions_boat_rounded},
-      {'name': 'Ferry', 'icon': Icons.sailing_rounded},
+      {'name': 'Cruise/Ferry', 'icon': Icons.directions_boat_rounded},
       {'name': 'Other', 'icon': Icons.alt_route_rounded},
     ];
 
@@ -2589,8 +2752,8 @@ class _AddEventDialogState extends State<AddEventDialog> {
                     // Sub-Category Selector
                     _buildSubCategorySelector(),
                     const SizedBox(height: 22),
-                    if (_selectedCategory == 'Transportation' && _selectedSubCategory == 'Flight') ...[
-                      _buildFlightFeaturesSection(),
+                    if (_selectedCategory == 'Transportation') ...[
+                      _buildTransportationFeaturesSection(),
                     ],
                     const Divider(height: 1, color: Color(0xFFF1F5F9)),
                     const SizedBox(height: 22),
