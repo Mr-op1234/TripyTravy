@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import '../../data/itinerary_database.dart';
 import '../../data/google_maps_helper.dart';
 import '../widgets/rich_description_editor.dart';
+import 'image_upload_dialog.dart';
 
 /// Dedicated in-app modal image viewer for full resolution display with zoom & pan.
 class DedicatedImageViewerDialog extends StatelessWidget {
@@ -1473,74 +1474,26 @@ class _AddEventDialogState extends State<AddEventDialog> {
     editableTextState.hideToolbar();
   }
 
-  Future<void> _pasteImageFromClipboard() async {
-    try {
-      final imageBytes = await Pasteboard.image;
-      if (imageBytes != null && imageBytes.isNotEmpty) {
-        final appSupportDir = await getApplicationSupportDirectory();
-        final photosDir = Directory(p.join(appSupportDir.path, 'TripyTravy', 'event_photos'));
-        if (!await photosDir.exists()) {
-          await photosDir.create(recursive: true);
-        }
-        final fileName =
-            'pasted_${DateTime.now().millisecondsSinceEpoch}_${imageBytes.length.hashCode.abs()}.png';
-        final savedFile = File(p.join(photosDir.path, fileName));
-        await savedFile.writeAsBytes(imageBytes);
-
-        if (mounted) {
-          setState(() {
-            _photosList.add(savedFile.path);
-            _errorMessage = null;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pasted image from clipboard into Photos & Images'),
-              duration: Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-        return;
-      }
-
-      final files = await Pasteboard.files();
-      if (files.isNotEmpty) {
-        final added = <String>[];
-        for (final filePath in files) {
-          final ext = p.extension(filePath).replaceFirst('.', '').toLowerCase();
-          if (supportedImageExtensions.contains(ext)) {
-            final saved = await ItineraryDatabase.saveEventPhotoToAppStorage(filePath);
-            if (!_photosList.contains(saved)) {
-              added.add(saved);
-            }
+  void _openImageUploadDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => ImageUploadDialog(
+        currentPhotos: _photosList,
+        onImageAdded: (newPath) {
+          if (!_photosList.contains(newPath)) {
+            setState(() {
+              _photosList.add(newPath);
+              _errorMessage = null;
+            });
           }
-        }
-        if (added.isNotEmpty && mounted) {
+        },
+        onImageRemoved: (removedPath) {
           setState(() {
-            _photosList.addAll(added);
-            _errorMessage = null;
+            _photosList.remove(removedPath);
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Pasted ${added.length} image(s) from clipboard'),
-              duration: const Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
-        }
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No image found in clipboard to paste'),
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (_) {}
+        },
+      ),
+    );
   }
 
   void _viewPhoto(String photoPath) {
@@ -2974,25 +2927,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
     final totalAttachmentsCount =
         _existingAttachments.length + _attachedFiles.length;
 
-    return Focus(
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            HardwareKeyboard.instance.isControlPressed &&
-            event.logicalKey == LogicalKeyboardKey.keyV) {
-          final primary = FocusManager.instance.primaryFocus;
-          final isEditable = primary?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
-          if (isEditable) {
-            // Focus is in an active editable text box: let Flutter perform native text paste!
-            return KeyEventResult.ignored;
-          }
-          // Focus is outside any text input: paste clipboard image into Photos & Images!
-          _pasteImageFromClipboard();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Dialog(
+    return Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
@@ -3419,7 +3354,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                 runSpacing: 8,
                                 children: [
                                   OutlinedButton.icon(
-                                    onPressed: _pickPhotos,
+                                    onPressed: _openImageUploadDialog,
                                     icon: const Icon(
                                         Icons.add_photo_alternate_rounded,
                                         size: 18),
@@ -3429,20 +3364,6 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                       foregroundColor: const Color(0xFF2563EB),
                                       side: const BorderSide(
                                           color: Color(0xFF2563EB)),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(9)),
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 14, vertical: 10),
-                                    ),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: _pasteImageFromClipboard,
-                                    icon: const Icon(Icons.paste_rounded, size: 18),
-                                    label: const Text('Paste Image (Ctrl+V)'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: const Color(0xFF0F172A),
-                                      side: const BorderSide(
-                                          color: Color(0xFFCBD5E1)),
                                       shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(9)),
                                       padding: const EdgeInsets.symmetric(
@@ -3649,7 +3570,6 @@ class _AddEventDialogState extends State<AddEventDialog> {
           ],
         ),
       ),
-    ),
     );
   }
 
