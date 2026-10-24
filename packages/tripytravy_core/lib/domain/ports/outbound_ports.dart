@@ -1,5 +1,6 @@
 import '../entities/attachment_descriptor.dart';
 import '../entities/itinerary_event.dart';
+import '../entities/traveler_checklist.dart';
 import '../entities/trip_package.dart';
 import '../value_objects/geo_coordinate.dart';
 
@@ -7,7 +8,12 @@ class RawAttachmentInput {
   final String filename, mimeType;
   final AttachmentCategory category;
   final List<int> rawBytes;
-  const RawAttachmentInput({required this.filename, required this.mimeType, required this.category, required this.rawBytes});
+  const RawAttachmentInput({
+    required this.filename,
+    required this.mimeType,
+    required this.category,
+    required this.rawBytes,
+  });
 }
 
 class ProcessedAttachment {
@@ -35,6 +41,8 @@ abstract class AttachmentStoragePort {
   Future<AttachmentDescriptor> storeDeduplicated(ProcessedAttachment attachment);
   Future<List<int>?> readBlobBySha256(String sha256Checksum);
   Future<void> putRawBlob(String sha256Checksum, List<int> bytes);
+  Future<bool> hasBlob(String sha256Checksum);
+  Future<String?> getBlobPath(String sha256Checksum);
   int get uniqueBlobCount;
 }
 
@@ -58,13 +66,25 @@ abstract class ContainerCipherPort {
     bool hasEmbeddedMapSlice = false,
     bool isTemplateSanitized = false,
   });
-  Future<UnpackedTtrvPayload> unpackContainer({required List<int> containerBytes, String? userPin});
+  Future<UnpackedTtrvPayload> unpackContainer({
+    required List<int> containerBytes,
+    String? userPin,
+  });
 }
 
 abstract class TripRepositoryPort {
   Future<void> saveTrip(TripPackage trip);
   Future<TripPackage?> getTripById(String tripId);
   Future<List<TripPackage>> listAllTrips();
+  Future<bool> deleteTrip(String tripId);
+  Future<String?> getActiveTripId();
+  Future<void> setActiveTripId(String tripId);
+}
+
+abstract class ChecklistRepositoryPort {
+  Future<TripChecklistState> getChecklistForTrip(String tripId);
+  Future<void> saveChecklist(TripChecklistState checklist);
+  Future<bool> deleteChecklist(String tripId);
 }
 
 abstract class RouteProviderPort {
