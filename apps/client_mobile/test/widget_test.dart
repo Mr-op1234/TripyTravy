@@ -192,4 +192,169 @@ void main() {
     expect(find.text('Hokkaido'), findsOneWidget);
     expect(find.text('7 Days'), findsOneWidget);
   });
+
+  testWidgets(
+      'Trip card has three dots button with Mark as complete and Delete options',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MobileDashboardScreen(
+          di: testDi,
+          autoSeedDemoTripsIfEmpty: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify Osaka, Tokyo, Kyoto are present
+    expect(find.text('Osaka'), findsOneWidget);
+
+    // Verify three-dot icons are present on cards
+    final threeDotsFinder = find.byIcon(Icons.more_vert_rounded);
+    expect(threeDotsFinder, findsWidgets);
+
+    // Tap the first three-dot menu (Osaka)
+    await tester.tap(threeDotsFinder.first);
+    await tester.pumpAndSettle();
+
+    // Verify popup menu options: Mark as complete and Delete
+    expect(find.text('Mark as complete'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Marking a trip as complete moves it from active list to completed section, accessible via bottom-right button and drawer',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MobileDashboardScreen(
+          di: testDi,
+          autoSeedDemoTripsIfEmpty: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Osaka'), findsOneWidget);
+    expect(find.text('Tokyo'), findsOneWidget);
+    expect(find.text('Kyoto'), findsOneWidget);
+
+    // Bottom-right completed button is visible
+    expect(find.byKey(const Key('completed_bottom_right_button')), findsOneWidget);
+    expect(find.text('Completed'), findsOneWidget);
+
+    // Tap three dots on the first card (Osaka)
+    await tester.tap(find.byIcon(Icons.more_vert_rounded).first);
+    await tester.pumpAndSettle();
+
+    // Tap "Mark as complete"
+    await tester.tap(find.text('Mark as complete'));
+    await tester.pumpAndSettle();
+
+    // Osaka should now be moved out of active trips
+    expect(find.text('Osaka'), findsNothing);
+    expect(find.text('Tokyo'), findsOneWidget);
+    expect(find.text('Kyoto'), findsOneWidget);
+
+    // The bottom-right Completed button should now display count badge '1'
+    expect(find.text('1'), findsOneWidget);
+
+    // Tap the bottom-right completed button
+    await tester.tap(find.byKey(const Key('completed_bottom_right_button')));
+    await tester.pumpAndSettle();
+
+    // Completed Trips screen is now displayed
+    expect(find.text('Completed Trips'), findsOneWidget);
+    expect(find.text('Osaka'), findsOneWidget);
+    expect(find.text('Completed'), findsWidgets); // Badge on the card
+
+    // Tap the three dots on the completed Osaka card
+    await tester.tap(find.byIcon(Icons.more_vert_rounded));
+    await tester.pumpAndSettle();
+
+    // In completed view, the option is "Mark as active"
+    expect(find.text('Mark as active'), findsOneWidget);
+
+    // Tap "Mark as active" to restore Osaka
+    await tester.tap(find.text('Mark as active'));
+    await tester.pumpAndSettle();
+
+    // Completed view should now be empty
+    expect(find.text('No Completed Trips Yet'), findsOneWidget);
+
+    // Go back to main dashboard
+    await tester.tap(find.byTooltip('Back to Dashboard'));
+    await tester.pumpAndSettle();
+
+    // Osaka should be back in active trips!
+    expect(find.text('Osaka'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Burger drawer contains Completed Trips tile and navigates to completed screen',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MobileDashboardScreen(
+          di: testDi,
+          autoSeedDemoTripsIfEmpty: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Open Drawer via hamburger button
+    await tester.tap(find.byIcon(Icons.menu_rounded));
+    await tester.pumpAndSettle();
+
+    // Verify Completed Trips tile is in drawer
+    expect(find.byKey(const Key('drawer_completed_trips')), findsOneWidget);
+    expect(find.text('Completed Trips'), findsOneWidget);
+
+    // Tap Completed Trips in drawer
+    await tester.tap(find.byKey(const Key('drawer_completed_trips')));
+    await tester.pumpAndSettle();
+
+    // Verify Completed Trips screen is displayed
+    expect(find.text('Completed Trips'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Deleting a trip via card three-dot menu removes it after confirmation',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MobileDashboardScreen(
+          di: testDi,
+          autoSeedDemoTripsIfEmpty: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Osaka'), findsOneWidget);
+
+    // Tap the three dots for Osaka
+    await tester.tap(find.byIcon(Icons.more_vert_rounded).first);
+    await tester.pumpAndSettle();
+
+    // Tap Delete
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    // Verify confirmation dialog is visible
+    expect(find.text('Delete Trip'), findsOneWidget);
+    expect(find.text('Are you sure you want to permanently delete "Osaka"?'),
+        findsOneWidget);
+
+    // Confirm deletion
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Verify Osaka is permanently removed from dashboard
+    expect(find.text('Osaka'), findsNothing);
+    expect(find.text('Tokyo'), findsOneWidget);
+    expect(find.text('Kyoto'), findsOneWidget);
+  });
 }
+

@@ -170,6 +170,7 @@ class TripPackage {
   final String currencyCodeIso4217;
   final String languageBcp47;
   final bool isTemplate;
+  final bool isCompleted;
   final List<TravelerProfile> travelers;
   final List<ItineraryDay> days;
   final List<AttachmentDescriptor> allAssets;
@@ -186,6 +187,7 @@ class TripPackage {
     this.currencyCodeIso4217 = 'USD',
     this.languageBcp47 = 'en-US',
     this.isTemplate = false,
+    this.isCompleted = false,
     this.travelers = const [],
     this.days = const [],
     this.allAssets = const [],
@@ -203,6 +205,7 @@ class TripPackage {
     String? currencyCodeIso4217,
     String? languageBcp47,
     bool? isTemplate,
+    bool? isCompleted,
     List<TravelerProfile>? travelers,
     List<ItineraryDay>? days,
     List<AttachmentDescriptor>? allAssets,
@@ -219,6 +222,7 @@ class TripPackage {
       currencyCodeIso4217: currencyCodeIso4217 ?? this.currencyCodeIso4217,
       languageBcp47: languageBcp47 ?? this.languageBcp47,
       isTemplate: isTemplate ?? this.isTemplate,
+      isCompleted: isCompleted ?? this.isCompleted,
       travelers: travelers ?? this.travelers,
       days: days ?? this.days,
       allAssets: allAssets ?? this.allAssets,
@@ -237,6 +241,7 @@ class TripPackage {
         'currencyCodeIso4217': currencyCodeIso4217,
         'languageBcp47': languageBcp47,
         'isTemplate': isTemplate,
+        'isCompleted': isCompleted,
         'travelers': travelers.map((t) => t.toJson()).toList(),
         'days': days.map((d) => d.toJson()).toList(),
         'allAssets': allAssets.map((a) => a.toJson()).toList(),
@@ -254,6 +259,7 @@ class TripPackage {
         currencyCodeIso4217: (json['currencyCodeIso4217'] as String?) ?? 'USD',
         languageBcp47: (json['languageBcp47'] as String?) ?? 'en-US',
         isTemplate: (json['isTemplate'] as bool?) ?? false,
+        isCompleted: (json['isCompleted'] as bool?) ?? false,
         travelers: (json['travelers'] as List<dynamic>? ?? const [])
             .map((t) => TravelerProfile.fromJson(t as Map<String, dynamic>))
             .toList(),

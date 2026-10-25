@@ -46,6 +46,8 @@ class TripCardWidget extends StatelessWidget {
   final String fallbackAsset;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onDelete;
+  final VoidCallback? onToggleComplete;
 
   const TripCardWidget({
     super.key,
@@ -54,6 +56,8 @@ class TripCardWidget extends StatelessWidget {
     this.fallbackAsset = 'assets/images/japan.png',
     required this.onTap,
     this.onLongPress,
+    this.onDelete,
+    this.onToggleComplete,
   });
 
   @override
@@ -102,6 +106,133 @@ class TripCardWidget extends StatelessWidget {
                         Colors.black.withValues(alpha: 0.25),
                         Colors.black.withValues(alpha: 0.82),
                       ],
+                    ),
+                  ),
+                ),
+
+                // Completed pill badge when completed
+                if (trip.isCompleted)
+                  Positioned(
+                    top: 14,
+                    left: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_rounded, color: Colors.white, size: 14),
+                          SizedBox(width: 4),
+                          Text(
+                            'Completed',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Three-dot options menu in top-right corner
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        shape: BoxShape.circle,
+                      ),
+                      child: PopupMenuButton<String>(
+                        icon: const Icon(
+                          Icons.more_vert_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        tooltip: 'Trip options',
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        color: Colors.white,
+                        elevation: 8,
+                        onSelected: (value) {
+                          if (value == 'delete') {
+                            onDelete?.call();
+                          } else if (value == 'toggle_complete') {
+                            onToggleComplete?.call();
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem<String>(
+                            value: 'toggle_complete',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  trip.isCompleted
+                                      ? Icons.replay_rounded
+                                      : Icons.check_circle_outline_rounded,
+                                  size: 20,
+                                  color: const Color(0xFF0D2356),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    trip.isCompleted
+                                        ? 'Mark as active'
+                                        : 'Mark as complete',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF0D2356),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 20,
+                                  color: Colors.redAccent,
+                                ),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Delete',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.redAccent,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

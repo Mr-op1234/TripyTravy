@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:tripytravy_core/tripytravy_core.dart';
 import '../di/mobile_di_container.dart';
+import 'completed_trips_screen.dart';
 import 'traveler_viewer_screen.dart';
 import 'widgets/empty_trips_view.dart';
 import 'widgets/import_tt_dialog.dart';
@@ -197,6 +198,81 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     await _loadTrips();
   }
 
+  Future<void> _markTripCompleted(TripPackage trip) async {
+    final updated = trip.copyWith(isCompleted: true);
+    await widget.di.tripRepository.saveTrip(updated);
+    await _loadTrips();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Marked "${trip.title}" as complete'),
+        backgroundColor: const Color(0xFF0D2356),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: Colors.amberAccent,
+          onPressed: () async {
+            await widget.di.tripRepository
+                .saveTrip(trip.copyWith(isCompleted: false));
+            await _loadTrips();
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmAndDeleteTrip(TripPackage trip) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Delete Trip',
+          style: TextStyle(
+            color: Color(0xFF0D2356),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete "${trip.title}"?',
+          style: const TextStyle(color: Color(0xFF475569)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await widget.di.tripRepository.deleteTrip(trip.tripId);
+      await _loadTrips();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Deleted "${trip.title}"'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Future<void> _openImportDialog() async {
     final imported = await showImportTtFileDialog(
       context: context,
@@ -228,52 +304,81 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     );
   }
 
+  void _openCompletedTripsScreen() {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => CompletedTripsScreen(
+              di: widget.di,
+              onTripsChanged: _loadTrips,
+            ),
+          ),
+        )
+        .then((_) => _loadTrips());
+  }
+
   @override
   Widget build(BuildContext context) {
-    final subtitleText = _trips.isNotEmpty
-        ? (_trips.first.subtitle.isNotEmpty
-            ? _trips.first.subtitle
+    final activeTrips = _trips.where((t) => !t.isCompleted).toList();
+    final completedTrips = _trips.where((t) => t.isCompleted).toList();
+
+    final subtitleText = activeTrips.isNotEmpty
+        ? (activeTrips.first.subtitle.isNotEmpty
+            ? activeTrips.first.subtitle
             : 'Your journeys across the World')
         : 'Your personal travel companion';
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.white,
-      drawer: _buildDrawer(),
+      drawer: _buildDrawer(activeCount: activeTrips.length, completedCount: completedTrips.length),
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            // Top App Bar / Header matching Inspiration UI
-            _buildHeader(subtitleText),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top App Bar / Header matching Inspiration UI
+                _buildHeader(subtitleText),
 
-            // Content Area: Either the Cards List or the Minimalistic Empty State
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Color(0xFF0D2356)),
-                      ),
-                    )
-                  : _trips.isEmpty
-                      ? EmptyTripsView(onImportTap: _openImportDialog)
-                      : ListView.builder(
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 96),
-                          itemCount: _trips.length,
-                          itemBuilder: (context, index) {
-                            final trip = _trips[index];
-                            final imageUrl = kDemoTripImages[trip.tripId];
+                // Content Area: Either the Cards List or the Minimalistic Empty State
+                Expanded(
+                  child: _isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Color(0xFF0D2356)),
+                          ),
+                        )
+                      : activeTrips.isEmpty
+                          ? EmptyTripsView(onImportTap: _openImportDialog)
+                          : ListView.builder(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 96),
+                              itemCount: activeTrips.length,
+                              itemBuilder: (context, index) {
+                                final trip = activeTrips[index];
+                                final imageUrl = kDemoTripImages[trip.tripId];
 
-                            return TripCardWidget(
-                              trip: trip,
-                              imageUrl: imageUrl,
-                              onTap: () => _openTripDetail(trip),
-                              onLongPress: () => _showTripOptionsDialog(trip),
-                            );
-                          },
-                        ),
+                                return TripCardWidget(
+                                  trip: trip,
+                                  imageUrl: imageUrl,
+                                  onTap: () => _openTripDetail(trip),
+                                  onLongPress: () => _showTripOptionsDialog(trip),
+                                  onToggleComplete: () => _markTripCompleted(trip),
+                                  onDelete: () => _confirmAndDeleteTrip(trip),
+                                );
+                              },
+                            ),
+                ),
+              ],
+            ),
+
+            // Completed thing in the bottom-right corner
+            Positioned(
+              right: 18,
+              bottom: 16,
+              child: _buildCompletedPillButton(completedTrips.length),
             ),
           ],
         ),
@@ -303,6 +408,70 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
             Icons.add,
             color: Colors.white,
             size: 30,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompletedPillButton(int completedCount) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: const Key('completed_bottom_right_button'),
+        onTap: _openCompletedTripsScreen,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0D2356),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0D2356).withValues(alpha: 0.35),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 7),
+              const Text(
+                'Completed',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              if (completedCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$completedCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -361,12 +530,12 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     );
   }
 
-  Widget _buildDrawer() {
+  Widget _buildDrawer({required int activeCount, required int completedCount}) {
     return Drawer(
       backgroundColor: Colors.white,
       child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
             Container(
               padding: const EdgeInsets.all(24),
@@ -417,6 +586,36 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
               },
             ),
             ListTile(
+              key: const Key('drawer_completed_trips'),
+              leading: const Icon(
+                Icons.check_circle_outline_rounded,
+                color: Color(0xFF0D2356),
+              ),
+              title: const Text('Completed Trips'),
+              trailing: completedCount > 0
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D2356),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '$completedCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                  : null,
+              onTap: () {
+                Navigator.of(context).pop();
+                _openCompletedTripsScreen();
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.refresh_rounded,
                   color: Color(0xFF0D2356)),
               title: const Text('Reset Inspiration Trips (Osaka, Tokyo, Kyoto)'),
@@ -440,7 +639,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(
-                'Trips Loaded: ${_trips.length}',
+                'Active: $activeCount · Completed: $completedCount',
                 style: const TextStyle(
                   fontSize: 12,
                   color: Color(0xFF94A3B8),
@@ -486,13 +685,33 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                 },
               ),
               ListTile(
+                leading: Icon(
+                  trip.isCompleted
+                      ? Icons.replay_rounded
+                      : Icons.check_circle_outline_rounded,
+                  color: const Color(0xFF0D2356),
+                ),
+                title: Text(
+                    trip.isCompleted ? 'Mark as active' : 'Mark as complete'),
+                onTap: () async {
+                  Navigator.of(bottomCtx).pop();
+                  if (trip.isCompleted) {
+                    await widget.di.tripRepository
+                        .saveTrip(trip.copyWith(isCompleted: false));
+                  } else {
+                    await widget.di.tripRepository
+                        .saveTrip(trip.copyWith(isCompleted: true));
+                  }
+                  await _loadTrips();
+                },
+              ),
+              ListTile(
                 leading:
                     const Icon(Icons.delete_outline, color: Colors.redAccent),
                 title: const Text('Delete Trip'),
                 onTap: () async {
                   Navigator.of(bottomCtx).pop();
-                  await widget.di.tripRepository.deleteTrip(trip.tripId);
-                  await _loadTrips();
+                  await _confirmAndDeleteTrip(trip);
                 },
               ),
             ],
