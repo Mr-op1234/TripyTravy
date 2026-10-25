@@ -239,9 +239,8 @@ void main() {
     expect(find.text('Tokyo'), findsOneWidget);
     expect(find.text('Kyoto'), findsOneWidget);
 
-    // Bottom-right completed button is visible
-    expect(find.byKey(const Key('completed_bottom_right_button')), findsOneWidget);
-    expect(find.text('Completed'), findsOneWidget);
+    // When 0 completed trips exist, bottom-right completed button is cleanly hidden
+    expect(find.byKey(const Key('completed_bottom_right_button')), findsNothing);
 
     // Tap three dots on the first card (Osaka)
     await tester.tap(find.byIcon(Icons.more_vert_rounded).first);
@@ -256,7 +255,9 @@ void main() {
     expect(find.text('Tokyo'), findsOneWidget);
     expect(find.text('Kyoto'), findsOneWidget);
 
-    // The bottom-right Completed button should now display count badge '1'
+    // The bottom-right Completed button now appears with count badge '1'
+    expect(find.byKey(const Key('completed_bottom_right_button')), findsOneWidget);
+    expect(find.text('Completed'), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
 
     // Tap the bottom-right completed button
@@ -288,6 +289,9 @@ void main() {
 
     // Osaka should be back in active trips!
     expect(find.text('Osaka'), findsOneWidget);
+
+    // And bottom-right completed button hides again because completed count is 0
+    expect(find.byKey(const Key('completed_bottom_right_button')), findsNothing);
   });
 
   testWidgets(

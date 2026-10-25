@@ -374,12 +374,13 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
               ],
             ),
 
-            // Completed thing in the bottom-right corner
-            Positioned(
-              right: 18,
-              bottom: 16,
-              child: _buildCompletedPillButton(completedTrips.length),
-            ),
+            // Completed thing in the bottom-right corner (only visible when completed journeys exist)
+            if (completedTrips.isNotEmpty)
+              Positioned(
+                right: 18,
+                bottom: 16,
+                child: _buildCompletedPillButton(completedTrips.length),
+              ),
           ],
         ),
       ),
