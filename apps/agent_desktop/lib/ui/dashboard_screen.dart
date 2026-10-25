@@ -318,29 +318,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               children: [
                 ListTile(
-                  leading: const Icon(Icons.dashboard_outlined, color: Color(0xFF475569)),
+                  leading: const Icon(Icons.dashboard_rounded, color: Color(0xFF0066FF)),
                   title: const Text(
                     'All Itineraries',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  onTap: () => Navigator.pop(context),
-                ),
-                const SizedBox(height: 4),
-                ListTile(
-                  key: const Key('drawer_exported_itineraries_option'),
-                  leading: const Icon(Icons.inventory_2_outlined, color: Color(0xFF0066FF)),
-                  title: const Text(
-                    'Exported itineraries',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF0066FF),
                     ),
                   ),
                   tileColor: const Color(0xFFEFF6FF),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  onTap: () => Navigator.pop(context),
+                ),
+                const SizedBox(height: 4),
+                ListTile(
+                  key: const Key('drawer_exported_itineraries_option'),
+                  leading: const Icon(Icons.inventory_2_outlined, color: Color(0xFF475569)),
+                  title: const Text(
+                    'Exported itineraries',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF334155),
+                    ),
+                  ),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   onTap: () {
                     Navigator.pop(context);
