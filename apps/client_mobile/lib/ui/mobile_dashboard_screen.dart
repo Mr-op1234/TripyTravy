@@ -142,7 +142,7 @@ class MobileDashboardScreen extends StatefulWidget {
     super.key,
     required this.di,
     this.filePickerOverride,
-    this.autoSeedDemoTripsIfEmpty = true,
+    this.autoSeedDemoTripsIfEmpty = false,
   });
 
   @override

@@ -37,7 +37,7 @@ class TripyTravyMobileApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: MobileDashboardScreen(di: di),
+      home: MobileDashboardScreen(di: di, autoSeedDemoTripsIfEmpty: false),
     );
   }
 }
