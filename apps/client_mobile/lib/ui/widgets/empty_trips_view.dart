@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'rounded_curved_arrow_painter.dart';
 
 /// Minimalistic, subtle empty state widget shown when no trips are available.
-/// Displays "No trips, Import one" and a rounded curved arrow pointing down
-/// directly to the '+' action button with breathing room.
+/// Displays non-interactive background text "No trips? Import one!!" and a rounded curved arrow
+/// pointing down directly to the '+' action button with breathing room.
 class EmptyTripsView extends StatelessWidget {
-  final VoidCallback onImportTap;
+  final VoidCallback? onImportTap;
 
   const EmptyTripsView({
     super.key,
-    required this.onImportTap,
+    this.onImportTap,
   });
 
   @override
@@ -35,20 +35,17 @@ class EmptyTripsView extends StatelessWidget {
                   children: [
                     // Shifted upwards with smaller top spacer
                     const Spacer(flex: 1),
-                    // Subtle themed minimalistic text with larger font
-                    GestureDetector(
-                      onTap: onImportTap,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                        child: Text(
-                          'No trips, Import one',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF0D2356).withValues(alpha: 0.50),
-                            letterSpacing: -0.3,
-                          ),
+                    // Non-clickable background text
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Text(
+                        'No trips? Import one!!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF0D2356).withValues(alpha: 0.50),
+                          letterSpacing: -0.3,
                         ),
                       ),
                     ),

@@ -86,7 +86,7 @@ void main() {
   });
 
   testWidgets(
-      'When no trips are available, displays subtle "No trips, Import one" and rounded curved arrow',
+      'When no trips are available, displays background "No trips? Import one!!" and rounded curved arrow',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -99,8 +99,13 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Verify subtle themed minimalistic text
-    expect(find.text('No trips, Import one'), findsOneWidget);
+    // Verify background text is present
+    expect(find.text('No trips? Import one!!'), findsOneWidget);
+
+    // Verify tapping on the text does NOT open the import dialog (pure background text)
+    await tester.tap(find.text('No trips? Import one!!'));
+    await tester.pumpAndSettle();
+    expect(find.text('Select your Travel itinerary .tt file'), findsNothing);
 
     // Verify rounded curved arrow CustomPaint is rendered
     final customPaintFinder = find.byWidgetPredicate(
