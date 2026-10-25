@@ -1,8 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 import '../data/itinerary_database.dart';
+import '../data/itinerary_file_manager.dart';
+import '../data/itinerary_tt_compiler.dart';
 
 import 'dialogs/change_banner_dialog.dart';
 
@@ -15,6 +20,16 @@ import 'widgets/smooth_scroll.dart';
 import 'widgets/rich_description_editor.dart';
 
 class TripDetailScreen extends StatefulWidget {
+  @visibleForTesting
+  static Future<Uri?> Function({
+    required String fileName,
+    required Uint8List bytes,
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType? type,
+    List<String>? allowedExtensions,
+  })? saveFilePickerOverride;
+
   final DestinationItem item;
 
   final List<TripDayItem>? initialDays;
@@ -235,6 +250,109 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         initialDocuments: widget.initialDocuments != null ? _documents : null,
       ),
     ).then((_) => _loadTripData());
+  }
+
+  Future<void> _exportToTtFile() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(
+              Icons.hourglass_top_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 12),
+            Text('Compiling "${_currentTrip.title}" into encrypted .tt file...'),
+          ],
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF0F172A),
+      ),
+    );
+
+    try {
+      final bytes = await ItineraryTtCompiler.compile(
+        trip: _currentTrip,
+        days: _days,
+        events: _events,
+        documents: _documents,
+      );
+
+      final defaultFileName = ItineraryFileManager.generateTtFileName(_currentTrip.title);
+      final itineraryFolder = await ItineraryFileManager.ensureItineraryFolder(_currentTrip.title);
+
+      // Save directly into the designated itinerary folder
+      final savedFile = await ItineraryFileManager.saveTtFile(
+        itineraryTitle: _currentTrip.title,
+        bytes: bytes,
+        customFileName: defaultFileName,
+      );
+
+      // Internally open file explorer save dialog so user can save in their directory
+      String? userSavedPath;
+      try {
+        final uri = TripDetailScreen.saveFilePickerOverride != null
+            ? await TripDetailScreen.saveFilePickerOverride!(
+                dialogTitle: 'Save Itinerary .tt Container',
+                fileName: defaultFileName,
+                initialDirectory: itineraryFolder.path,
+                type: FileType.custom,
+                allowedExtensions: ['tt'],
+                bytes: Uint8List.fromList(bytes),
+              )
+            : await FilePicker.saveFile(
+                dialogTitle: 'Save Itinerary .tt Container',
+                fileName: defaultFileName,
+                initialDirectory: itineraryFolder.path,
+                type: FileType.custom,
+                allowedExtensions: ['tt'],
+                bytes: Uint8List.fromList(bytes),
+              );
+        if (uri != null) {
+          userSavedPath = uri.hasScheme && uri.scheme == 'file' ? uri.toFilePath() : uri.path;
+        }
+      } catch (e) {
+        debugPrint('File picker saveFile note: $e');
+      }
+
+      final finalPath = (userSavedPath != null && userSavedPath.isNotEmpty)
+          ? userSavedPath
+          : savedFile.path;
+
+      if (userSavedPath != null && userSavedPath != savedFile.path) {
+        try {
+          await File(userSavedPath).writeAsBytes(bytes, flush: true);
+        } catch (_) {}
+      }
+
+      // Open file explorer to show the generated file
+      await ItineraryFileManager.openFileInExplorer(finalPath);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF0066FF),
+            duration: const Duration(seconds: 5),
+            content: Text('Successfully exported "${p.basename(finalPath)}" to ${itineraryFolder.path}'),
+            action: SnackBarAction(
+              label: 'Open Folder',
+              textColor: Colors.white,
+              onPressed: () => ItineraryFileManager.openFolderInExplorer(itineraryFolder.path),
+            ),
+          ),
+        );
+      }
+    } catch (e, st) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFFDC2626),
+            content: Text('Export failed: $e'),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildBannerImage(String path) {
@@ -486,7 +604,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                             ),
                           ),
                           child: PopupMenuButton<String>(
-                            tooltip: 'Banner Options',
+                            tooltip: 'Itinerary Options',
                             icon: Container(
                               width: 38,
                               height: 38,
@@ -501,18 +619,25 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                                   color: Colors.white, size: 18),
                             ),
                             onSelected: (val) {
-                              if (val == 'banner') _showChangeBannerDialog();
+                              if (val == 'export_tt') {
+                                _exportToTtFile();
+                              }
                             },
                             itemBuilder: (_) => [
                               const PopupMenuItem(
-                                value: 'banner',
+                                value: 'export_tt',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.image_outlined,
-                                        size: 18, color: Color(0xFF334155)),
+                                    Icon(Icons.file_upload_outlined,
+                                        size: 18, color: Color(0xFF0066FF)),
                                     SizedBox(width: 10),
-                                    Text('Change Banner',
-                                        style: TextStyle(fontSize: 13)),
+                                    Expanded(
+                                      child: Text('Export to .tt file',
+                                          style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF0F172A))),
+                                    ),
                                   ],
                                 ),
                               ),

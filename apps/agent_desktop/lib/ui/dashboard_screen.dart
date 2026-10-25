@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../data/itinerary_database.dart';
+import '../data/itinerary_file_manager.dart';
+import 'exported_itineraries_screen.dart';
 import 'trip_editor_dialog.dart';
 import 'trip_detail_screen.dart';
 import 'widgets/smooth_scroll.dart';
@@ -15,6 +17,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _searchController = TextEditingController();
   late final ScrollController _scrollController;
   List<DestinationItem> _destinations = [];
@@ -27,6 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (widget.initialDestinations != null) {
       _destinations = List.from(widget.initialDestinations!);
       _isLoading = false;
+      ItineraryFileManager.ensureDefaultFolders(_destinations.map((i) => i.title).toList());
     } else {
       _loadItineraries();
     }
@@ -34,6 +38,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadItineraries() async {
     final items = await ItineraryDatabase.instance.getAllItineraries();
+    await ItineraryFileManager.ensureDefaultFolders(items.map((i) => i.title).toList());
     if (mounted) {
       setState(() {
         _destinations = items;
@@ -135,6 +140,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               startDate: savedItem.startDate,
               endDate: savedItem.endDate,
             );
+            await ItineraryFileManager.ensureItineraryFolder(created.title);
             if (mounted) {
               setState(() {
                 _destinations.add(created);
@@ -149,6 +155,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           } else {
             // Edit existing trip
             await ItineraryDatabase.instance.updateItinerary(savedItem);
+            await ItineraryFileManager.ensureItineraryFolder(savedItem.title);
             if (mounted) {
               setState(() {
                 final idx = _destinations.indexWhere((d) => d.id == savedItem.id);
@@ -224,6 +231,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _buildDashboardDrawer(),
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Scrollbar(
@@ -249,11 +258,173 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildDashboardDrawer() {
+    return Drawer(
+      backgroundColor: Colors.white,
+      elevation: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.travel_explore_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TripyTravy',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Agent Workspace',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.dashboard_outlined, color: Color(0xFF475569)),
+                  title: const Text(
+                    'All Itineraries',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  onTap: () => Navigator.pop(context),
+                ),
+                const SizedBox(height: 4),
+                ListTile(
+                  key: const Key('drawer_exported_itineraries_option'),
+                  leading: const Icon(Icons.inventory_2_outlined, color: Color(0xFF0066FF)),
+                  title: const Text(
+                    'Exported itineraries',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0066FF),
+                    ),
+                  ),
+                  tileColor: const Color(0xFFEFF6FF),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ExportedItinerariesScreen(
+                          initialItineraries: _destinations,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 4),
+                ListTile(
+                  leading: const Icon(Icons.folder_open_outlined, color: Color(0xFF475569)),
+                  title: const Text(
+                    'Open Root Folder',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF334155),
+                    ),
+                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await ItineraryFileManager.openBaseFolderInExplorer();
+                  },
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.shield_outlined, size: 16, color: Color(0xFF16A34A)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Decentralized .tt Engine Active',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   Widget _buildTopHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
       child: Row(
         children: [
+          // Hamburger Icon at top left corner
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: const Key('dashboard_hamburger_button'),
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => _scaffoldKey.currentState?.openDrawer(),
+              child: Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                ),
+                child: const Icon(
+                  Icons.menu_rounded,
+                  color: Color(0xFF1E293B),
+                  size: 24,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14), // Shift the logo a little bit
+
           // Left: TripyTravy Official White-Themed Brand Logo
           Image.asset(
             'assets/images/TripyTravyWhiteTheme.png',
