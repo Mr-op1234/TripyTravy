@@ -239,23 +239,6 @@ class _TravelerItineraryViewScreenState
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0D2356),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                '${day.dayNumber}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,

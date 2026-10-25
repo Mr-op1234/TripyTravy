@@ -64,7 +64,7 @@ void main() {
 
     // Verify Header
     expect(find.text('Tripy Travy'), findsOneWidget);
-    expect(find.text('Your journeys across Japan'), findsWidgets);
+    expect(find.text('Your journeys across the World'), findsWidgets);
     expect(find.byIcon(Icons.menu_rounded), findsOneWidget);
 
     // Verify Demo Trips (Osaka, Tokyo, Kyoto)

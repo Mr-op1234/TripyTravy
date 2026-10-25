@@ -12,7 +12,7 @@ final List<TripPackage> kInspirationDemoTrips = [
   const TripPackage(
     tripId: 'trip_osaka_demo',
     title: 'Osaka',
-    subtitle: 'Your journeys across Japan',
+    subtitle: 'Your journeys across the World',
     destinationTags: ['Japan', 'Osaka', 'Kansai'],
     startDateIso8601: '2025-05-20',
     endDateIso8601: '2025-05-23',
@@ -47,7 +47,7 @@ final List<TripPackage> kInspirationDemoTrips = [
   const TripPackage(
     tripId: 'trip_tokyo_demo',
     title: 'Tokyo',
-    subtitle: 'Your journeys across Japan',
+    subtitle: 'Your journeys across the World',
     destinationTags: ['Japan', 'Tokyo', 'Kanto'],
     startDateIso8601: '2025-05-24',
     endDateIso8601: '2025-05-28',
@@ -88,7 +88,7 @@ final List<TripPackage> kInspirationDemoTrips = [
   const TripPackage(
     tripId: 'trip_kyoto_demo',
     title: 'Kyoto',
-    subtitle: 'Your journeys across Japan',
+    subtitle: 'Your journeys across the World',
     destinationTags: ['Japan', 'Kyoto', 'Kansai'],
     startDateIso8601: '2025-05-29',
     endDateIso8601: '2025-06-01',
@@ -233,7 +233,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     final subtitleText = _trips.isNotEmpty
         ? (_trips.first.subtitle.isNotEmpty
             ? _trips.first.subtitle
-            : 'Your journeys across Japan')
+            : 'Your journeys across the World')
         : 'Your personal travel companion';
 
     return Scaffold(
