@@ -578,15 +578,6 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
             ),
             const SizedBox(height: 12),
             ListTile(
-              leading: const Icon(Icons.file_upload_outlined,
-                  color: Color(0xFF0D2356)),
-              title: const Text('Import .tt File'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _openImportDialog();
-              },
-            ),
-            ListTile(
               key: const Key('drawer_completed_trips'),
               leading: const Icon(
                 Icons.check_circle_outline_rounded,
@@ -614,16 +605,6 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
               onTap: () {
                 Navigator.of(context).pop();
                 _openCompletedTripsScreen();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.refresh_rounded,
-                  color: Color(0xFF0D2356)),
-              title: const Text('Reset Inspiration Trips (Osaka, Tokyo, Kyoto)'),
-              subtitle: const Text('Restore reference mockup trips'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _loadInspirationDemoTrips();
               },
             ),
             ListTile(

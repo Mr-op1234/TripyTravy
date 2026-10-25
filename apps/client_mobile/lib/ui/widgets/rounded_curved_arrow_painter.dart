@@ -9,7 +9,7 @@ class RoundedCurvedArrowPainter extends CustomPainter {
 
   const RoundedCurvedArrowPainter({
     this.color = const Color(0xFF8A99AD),
-    this.strokeWidth = 2.2,
+    this.strokeWidth = 2.6,
   });
 
   @override
@@ -25,9 +25,9 @@ class RoundedCurvedArrowPainter extends CustomPainter {
     final startX = size.width * 0.54;
     final startY = 6.0;
 
-    // End point right above the bottom center '+' button
+    // End point above the bottom center '+' button
     final endX = size.width * 0.50;
-    final endY = size.height - 10.0;
+    final endY = size.height - 8.0;
 
     // Cubic Bezier curve control points creating a graceful, rounded loop/swoop
     final cp1X = size.width * 0.72;
@@ -46,7 +46,7 @@ class RoundedCurvedArrowPainter extends CustomPainter {
     final tangentDy = endY - cp2Y;
     final angle = math.atan2(tangentDy, tangentDx);
 
-    const headLength = 13.0;
+    const headLength = 16.0;
     const headAngle = 0.52; // ~30 degrees
 
     final leftX = endX - headLength * math.cos(angle - headAngle);

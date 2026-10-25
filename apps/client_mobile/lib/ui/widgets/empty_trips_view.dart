@@ -3,7 +3,7 @@ import 'rounded_curved_arrow_painter.dart';
 
 /// Minimalistic, subtle empty state widget shown when no trips are available.
 /// Displays "No trips, Import one" and a rounded curved arrow pointing down
-/// directly to the '+' action button.
+/// directly to the '+' action button with breathing room.
 class EmptyTripsView extends StatelessWidget {
   final VoidCallback onImportTap;
 
@@ -33,8 +33,9 @@ class EmptyTripsView extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.end,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Spacer(flex: 3),
-                    // Subtle themed minimalistic text
+                    // Shifted upwards with smaller top spacer
+                    const Spacer(flex: 1),
+                    // Subtle themed minimalistic text with larger font
                     GestureDetector(
                       onTap: onImportTap,
                       child: Padding(
@@ -43,30 +44,30 @@ class EmptyTripsView extends StatelessWidget {
                           'No trips, Import one',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w400,
-                            color: const Color(0xFF0D2356).withValues(alpha: 0.40),
-                            letterSpacing: 0.3,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF0D2356).withValues(alpha: 0.50),
+                            letterSpacing: -0.3,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    // Rounded curved arrow leading directly down to the center '+' button
+                    const SizedBox(height: 16),
+                    // Larger rounded curved arrow leading down to the center '+' button
                     Center(
                       child: SizedBox(
-                        width: 140,
-                        height: 180,
+                        width: 170,
+                        height: 230,
                         child: CustomPaint(
                           painter: RoundedCurvedArrowPainter(
-                            color: const Color(0xFF0D2356).withValues(alpha: 0.35),
-                            strokeWidth: 2.0,
+                            color: const Color(0xFF0D2356).withValues(alpha: 0.40),
+                            strokeWidth: 2.6,
                           ),
                         ),
                       ),
                     ),
-                    // Spacing so the arrow tip lands right above the bottom '+' button
-                    const SizedBox(height: 72),
+                    // Distance keeping arrow from touching the '+' icon below
+                    const SizedBox(height: 110),
                   ],
                 ),
               ),
