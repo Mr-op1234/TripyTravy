@@ -248,7 +248,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   RepaintBoundary(child: _buildTopHeader()),
                   const SizedBox(height: 28),
-                  _buildCardsSection(),
+                  RepaintBoundary(child: _buildCardsSection()),
                 ],
               ),
             ),

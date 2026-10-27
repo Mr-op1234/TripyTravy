@@ -437,7 +437,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
                         // 3. Itinerary Day-by-Day Section
 
-                        _buildItinerarySection(),
+                        RepaintBoundary(child: _buildItinerarySection()),
 
                         const SizedBox(height: 60),
                       ],
