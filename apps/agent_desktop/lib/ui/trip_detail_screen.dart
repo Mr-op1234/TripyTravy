@@ -357,36 +357,38 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
   Widget _buildBannerImage(String path) {
     if (path.isEmpty) {
-      return Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-          ),
-        ),
-      );
+      return _buildFallbackBanner();
     }
 
     if (path.startsWith('http://') || path.startsWith('https://')) {
-      return Image.network(path,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildFallbackBanner());
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        cacheWidth: 1600,
+        errorBuilder: (_, __, ___) => _buildFallbackBanner(),
+      );
     }
 
     if (path.startsWith('assets/')) {
-      return Image.asset(path,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildFallbackBanner());
+      return Image.asset(
+        path,
+        fit: BoxFit.cover,
+        cacheWidth: 1600,
+        errorBuilder: (_, __, ___) => _buildFallbackBanner(),
+      );
     }
 
-    final file = File(path);
-
-    if (file.existsSync()) {
-      return Image.file(file,
+    try {
+      final file = File(path);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildFallbackBanner());
-    }
+          cacheWidth: 1600,
+          errorBuilder: (_, __, ___) => _buildFallbackBanner(),
+        );
+      }
+    } catch (_) {}
 
     return _buildFallbackBanner();
   }
@@ -456,14 +458,15 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.22),
-            blurRadius: 36,
-            offset: const Offset(0, 16),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.16),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -471,36 +474,19 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
             _buildBannerImage(_currentTrip.imagePath),
 
-            // Vertical gradient for top/bottom contrast
+            // Single high-contrast gradient overlay (combines top/bottom and left contrast in 1 pass)
 
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                   colors: [
-                    Colors.black.withValues(alpha: 0.45),
+                    Colors.black.withValues(alpha: 0.55),
                     Colors.black.withValues(alpha: 0.20),
                     Colors.black.withValues(alpha: 0.88),
                   ],
-                  stops: const [0.0, 0.4, 1.0],
-                ),
-              ),
-            ),
-
-            // Horizontal subtle gradient for left alignment
-
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.65),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.35),
-                  ],
-                  stops: const [0.0, 0.6, 1.0],
+                  stops: const [0.0, 0.45, 1.0],
                 ),
               ),
             ),
@@ -692,11 +678,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                             fontFamily: 'serif',
                             letterSpacing: -0.8,
                             height: 1.05,
-                            shadows: [
+                            shadows: const [
                               Shadow(
                                   color: Colors.black54,
-                                  blurRadius: 16,
-                                  offset: Offset(0, 3)),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2)),
                             ],
                           ),
                         ),
@@ -816,7 +802,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                               shadows: const [
                                 Shadow(
                                     color: Colors.black54,
-                                    blurRadius: 10,
+                                    blurRadius: 4,
                                     offset: Offset(0, 2)),
                               ],
                             ),

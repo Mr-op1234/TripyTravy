@@ -940,6 +940,7 @@ class _ItineraryCardState extends State<ItineraryCard> {
       return Image.network(
         path,
         fit: BoxFit.cover,
+        cacheWidth: 800,
         errorBuilder: (_, __, ___) => _buildFallbackBanner(fallbackTitle),
       );
     }
@@ -947,17 +948,21 @@ class _ItineraryCardState extends State<ItineraryCard> {
       return Image.asset(
         path,
         fit: BoxFit.cover,
+        cacheWidth: 800,
         errorBuilder: (_, __, ___) => _buildFallbackBanner(fallbackTitle),
       );
     }
-    final file = File(path);
-    if (file.existsSync()) {
-      return Image.file(
-        file,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _buildFallbackBanner(fallbackTitle),
-      );
-    }
+    try {
+      final file = File(path);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          cacheWidth: 800,
+          errorBuilder: (_, __, ___) => _buildFallbackBanner(fallbackTitle),
+        );
+      }
+    } catch (_) {}
     return _buildFallbackBanner(fallbackTitle);
   }
 
