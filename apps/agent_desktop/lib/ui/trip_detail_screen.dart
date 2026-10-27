@@ -365,6 +365,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         path,
         fit: BoxFit.cover,
         cacheWidth: 1600,
+        filterQuality: FilterQuality.low,
         errorBuilder: (_, __, ___) => _buildFallbackBanner(),
       );
     }
@@ -373,7 +374,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       return Image.asset(
         path,
         fit: BoxFit.cover,
-        cacheWidth: 1600,
+        filterQuality: FilterQuality.low,
         errorBuilder: (_, __, ___) => _buildFallbackBanner(),
       );
     }
@@ -385,6 +386,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           file,
           fit: BoxFit.cover,
           cacheWidth: 1600,
+          filterQuality: FilterQuality.low,
           errorBuilder: (_, __, ___) => _buildFallbackBanner(),
         );
       }
@@ -783,9 +785,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
                   Padding(
                     padding: const EdgeInsets.only(left: 20),
-                    child: Transform.rotate(
-                      angle: -0.06,
-                      child: Column(
+                    child: RepaintBoundary(
+                      child: Transform.rotate(
+                        angle: -0.06,
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -811,6 +814,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                       ),
                     ),
                   ),
+                ),
                 ],
               ),
             ),

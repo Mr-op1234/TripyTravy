@@ -941,6 +941,7 @@ class _ItineraryCardState extends State<ItineraryCard> {
         path,
         fit: BoxFit.cover,
         cacheWidth: 800,
+        filterQuality: FilterQuality.low,
         errorBuilder: (_, __, ___) => _buildFallbackBanner(fallbackTitle),
       );
     }
@@ -948,7 +949,7 @@ class _ItineraryCardState extends State<ItineraryCard> {
       return Image.asset(
         path,
         fit: BoxFit.cover,
-        cacheWidth: 800,
+        filterQuality: FilterQuality.low,
         errorBuilder: (_, __, ___) => _buildFallbackBanner(fallbackTitle),
       );
     }
@@ -959,6 +960,7 @@ class _ItineraryCardState extends State<ItineraryCard> {
           file,
           fit: BoxFit.cover,
           cacheWidth: 800,
+          filterQuality: FilterQuality.low,
           errorBuilder: (_, __, ___) => _buildFallbackBanner(fallbackTitle),
         );
       }

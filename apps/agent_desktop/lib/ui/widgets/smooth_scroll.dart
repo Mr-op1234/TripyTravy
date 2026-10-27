@@ -1,9 +1,11 @@
+import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 /// A wrapper widget that provides buttery-smooth, interpolated scrolling
 /// for desktop mouse wheels without fighting native physics, lagging on trackpads,
-/// or rubberbanding on continuous scrolls.
+/// velocity spikes, or micro-stutter on continuous scrolls.
 class SmoothScroll extends StatefulWidget {
   final ScrollController controller;
   final Widget child;
@@ -17,7 +19,7 @@ class SmoothScroll extends StatefulWidget {
     required this.child,
     this.scrollSpeed = 1.0,
     this.animationDuration = const Duration(milliseconds: 160),
-    this.curve = Curves.easeOutCubic,
+    this.curve = Curves.easeOutQuad,
   });
 
   @override
@@ -26,53 +28,83 @@ class SmoothScroll extends StatefulWidget {
 
 class _SmoothScrollState extends State<SmoothScroll>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _animController;
-  double _startOffset = 0.0;
+  late final Ticker _ticker;
   double _targetOffset = 0.0;
-  double _currentAnimTarget = 0.0;
+  Duration _lastElapsed = Duration.zero;
+  bool _isFirstTick = false;
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: widget.animationDuration,
-    )..addListener(_onAnimTick);
-  }
-
-  @override
-  void didUpdateWidget(SmoothScroll oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.animationDuration != widget.animationDuration) {
-      _animController.duration = widget.animationDuration;
-    }
+    _ticker = createTicker(_onTick);
   }
 
   @override
   void dispose() {
-    _animController.dispose();
+    _ticker.dispose();
     super.dispose();
   }
 
-  void _onAnimTick() {
-    if (!mounted || !widget.controller.hasClients) return;
-
-    // If user is actively dragging the scrollbar thumb with a pointer, yield immediately
-    if (widget.controller.position.activity is DragScrollActivity) {
-      _animController.stop();
+  void _onTick(Duration elapsed) {
+    if (!mounted || !widget.controller.hasClients) {
+      _ticker.stop();
       return;
     }
 
-    final double curvedProgress = widget.curve.transform(_animController.value);
-    final double newOffset =
-        _startOffset + (_targetOffset - _startOffset) * curvedProgress;
-    final double clamped = newOffset.clamp(
-      widget.controller.position.minScrollExtent,
-      widget.controller.position.maxScrollExtent,
-    );
+    // If user is actively dragging the scrollbar thumb with a pointer, yield immediately
+    if (widget.controller.position.activity is DragScrollActivity) {
+      _ticker.stop();
+      _targetOffset = widget.controller.offset;
+      return;
+    }
 
-    if ((clamped - widget.controller.offset).abs() > 0.001) {
-      widget.controller.jumpTo(clamped);
+    double dt;
+    if (_isFirstTick) {
+      _lastElapsed = elapsed;
+      _isFirstTick = false;
+      dt = 0.016; // 16ms nominal step so motion responds on frame 1 without delay
+    } else {
+      dt = (elapsed - _lastElapsed).inMicroseconds / 1000000.0;
+      _lastElapsed = elapsed;
+    }
+
+    if (dt <= 0.0) return;
+    // Clamp dt to [1ms, 50ms] to avoid huge jumps on sudden frame delays
+    final double clampedDt = dt.clamp(0.001, 0.05);
+
+    final position = widget.controller.position;
+    final double minOffset = position.minScrollExtent;
+    final double maxOffset = position.maxScrollExtent;
+    final double currentOffset = widget.controller.offset;
+
+    // Detect if external jump occurred (e.g. user clicked or dragged scrollbar)
+    if ((currentOffset - _targetOffset).abs() > 300.0) {
+      _targetOffset = currentOffset;
+      _ticker.stop();
+      return;
+    }
+
+    _targetOffset = _targetOffset.clamp(minOffset, maxOffset);
+    final double diff = _targetOffset - currentOffset;
+
+    // When within subpixel threshold, snap to target and finish
+    if (diff.abs() < 0.25) {
+      widget.controller.jumpTo(_targetOffset);
+      _ticker.stop();
+      return;
+    }
+
+    // Continuous time-invariant critically damped smoothing:
+    // Derives decay rate lambda so ~98% of target distance is covered over animationDuration
+    final double durationSeconds =
+        (widget.animationDuration.inMilliseconds / 1000.0).clamp(0.08, 0.5);
+    final double lambda = 3.91 / durationSeconds;
+    final double blend = 1.0 - math.exp(-lambda * clampedDt);
+    final double nextOffset =
+        (currentOffset + diff * blend).clamp(minOffset, maxOffset);
+
+    if ((nextOffset - currentOffset).abs() > 0.001) {
+      widget.controller.jumpTo(nextOffset);
     }
   }
 
@@ -80,7 +112,7 @@ class _SmoothScrollState extends State<SmoothScroll>
     if (event is PointerScrollEvent) {
       // Laptop trackpads (Windows Precision Touchpad / macOS trackpad) already send
       // smooth, subpixel, 120Hz/60Hz hardware-accelerated inertia events natively.
-      // Intercepting trackpad events causes severe latency and lag.
+      // Intercepting trackpad events causes latency and stutter.
       if (event.kind == PointerDeviceKind.trackpad) {
         return;
       }
@@ -104,28 +136,18 @@ class _SmoothScrollState extends State<SmoothScroll>
     final double maxOffset = position.maxScrollExtent;
     final double currentOffset = widget.controller.offset;
 
-    // Detect if external jump occurred (e.g. user dragged scrollbar thumb)
-    if ((currentOffset - _currentAnimTarget).abs() > 250.0) {
+    // If ticker was idle or position diverged externally, sync target to current
+    if (!_ticker.isActive || (currentOffset - _targetOffset).abs() > 300.0) {
       _targetOffset = currentOffset;
+      _lastElapsed = Duration.zero;
+      _isFirstTick = true;
     }
 
-    final bool isContinuingSameDirection = _animController.isAnimating &&
-        ((delta > 0 && _targetOffset >= currentOffset) ||
-            (delta < 0 && _targetOffset <= currentOffset));
+    // Accumulate target offset seamlessly without any velocity spikes or resets
+    _targetOffset = (_targetOffset + delta).clamp(minOffset, maxOffset);
 
-    if (isContinuingSameDirection) {
-      _targetOffset += delta;
-    } else {
-      _targetOffset = currentOffset + delta;
-    }
-
-    _targetOffset = _targetOffset.clamp(minOffset, maxOffset);
-    _currentAnimTarget = _targetOffset;
-
-    if ((_targetOffset - currentOffset).abs() > 0.1) {
-      _startOffset = currentOffset;
-      _animController.duration = widget.animationDuration;
-      _animController.forward(from: 0.0);
+    if (!_ticker.isActive && (_targetOffset - currentOffset).abs() > 0.01) {
+      _ticker.start();
     }
   }
 
