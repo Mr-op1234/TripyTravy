@@ -85,10 +85,61 @@ class OfflineMapSlice {
       );
 }
 
+/// Trip Document and Information record exported from the Agent side
+class TripDocumentRecord {
+  final String id;
+  final String title;
+  final String docType;
+  final String description;
+  final String fileName;
+  final String fileSize;
+  final String filePath;
+  final String? locationName;
+  final String? mapUrl;
+
+  const TripDocumentRecord({
+    required this.id,
+    required this.title,
+    this.docType = 'general',
+    this.description = '',
+    this.fileName = '',
+    this.fileSize = '',
+    this.filePath = '',
+    this.locationName,
+    this.mapUrl,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'docType': docType,
+        'description': description,
+        'fileName': fileName,
+        'fileSize': fileSize,
+        'filePath': filePath,
+        'locationName': locationName,
+        'mapUrl': mapUrl,
+      };
+
+  factory TripDocumentRecord.fromJson(Map<String, dynamic> json) =>
+      TripDocumentRecord(
+        id: (json['id'] as String?) ?? '',
+        title: (json['title'] as String?) ?? '',
+        docType: (json['docType'] as String?) ?? 'general',
+        description: (json['description'] as String?) ?? '',
+        fileName: (json['fileName'] as String?) ?? '',
+        fileSize: (json['fileSize'] as String?) ?? '',
+        filePath: (json['filePath'] as String?) ?? '',
+        locationName: json['locationName'] as String?,
+        mapUrl: json['mapUrl'] as String?,
+      );
+}
+
 class ItineraryDay {
   final int dayNumber;
   final String dateIso8601;
   final String title;
+  final String description;
   final String primaryTimezoneIana;
   final List<ItineraryEvent> events;
   final List<RoutePath> routes;
@@ -99,6 +150,7 @@ class ItineraryDay {
     required this.dayNumber,
     required this.dateIso8601,
     required this.title,
+    this.description = '',
     required this.primaryTimezoneIana,
     this.events = const [],
     this.routes = const [],
@@ -110,6 +162,7 @@ class ItineraryDay {
     int? dayNumber,
     String? dateIso8601,
     String? title,
+    String? description,
     String? primaryTimezoneIana,
     List<ItineraryEvent>? events,
     List<RoutePath>? routes,
@@ -120,6 +173,7 @@ class ItineraryDay {
       dayNumber: dayNumber ?? this.dayNumber,
       dateIso8601: dateIso8601 ?? this.dateIso8601,
       title: title ?? this.title,
+      description: description ?? this.description,
       primaryTimezoneIana: primaryTimezoneIana ?? this.primaryTimezoneIana,
       events: events ?? this.events,
       routes: routes ?? this.routes,
@@ -132,6 +186,7 @@ class ItineraryDay {
         'dayNumber': dayNumber,
         'dateIso8601': dateIso8601,
         'title': title,
+        'description': description,
         'primaryTimezoneIana': primaryTimezoneIana,
         'events': events.map((e) => e.toJson()).toList(),
         'routes': routes.map((r) => r.toJson()).toList(),
@@ -143,6 +198,7 @@ class ItineraryDay {
         dayNumber: (json['dayNumber'] as num?)?.toInt() ?? 1,
         dateIso8601: (json['dateIso8601'] as String?) ?? '',
         title: (json['title'] as String?) ?? '',
+        description: (json['description'] as String?) ?? '',
         primaryTimezoneIana: (json['primaryTimezoneIana'] as String?) ?? 'UTC',
         events: (json['events'] as List<dynamic>? ?? const [])
             .map((e) => ItineraryEvent.fromJson(e as Map<String, dynamic>))
@@ -174,6 +230,7 @@ class TripPackage {
   final List<TravelerProfile> travelers;
   final List<ItineraryDay> days;
   final List<AttachmentDescriptor> allAssets;
+  final List<TripDocumentRecord> documents;
   final OfflineMapSlice? offlineMapSlice;
 
   const TripPackage({
@@ -191,6 +248,7 @@ class TripPackage {
     this.travelers = const [],
     this.days = const [],
     this.allAssets = const [],
+    this.documents = const [],
     this.offlineMapSlice,
   });
 
@@ -209,6 +267,7 @@ class TripPackage {
     List<TravelerProfile>? travelers,
     List<ItineraryDay>? days,
     List<AttachmentDescriptor>? allAssets,
+    List<TripDocumentRecord>? documents,
     OfflineMapSlice? offlineMapSlice,
   }) {
     return TripPackage(
@@ -226,6 +285,7 @@ class TripPackage {
       travelers: travelers ?? this.travelers,
       days: days ?? this.days,
       allAssets: allAssets ?? this.allAssets,
+      documents: documents ?? this.documents,
       offlineMapSlice: offlineMapSlice ?? this.offlineMapSlice,
     );
   }
@@ -245,6 +305,7 @@ class TripPackage {
         'travelers': travelers.map((t) => t.toJson()).toList(),
         'days': days.map((d) => d.toJson()).toList(),
         'allAssets': allAssets.map((a) => a.toJson()).toList(),
+        'documents': documents.map((d) => d.toJson()).toList(),
         if (offlineMapSlice != null) 'offlineMapSlice': offlineMapSlice!.toJson(),
       };
 
@@ -268,6 +329,9 @@ class TripPackage {
             .toList(),
         allAssets: (json['allAssets'] as List<dynamic>? ?? const [])
             .map((a) => AttachmentDescriptor.fromJson(a as Map<String, dynamic>))
+            .toList(),
+        documents: (json['documents'] as List<dynamic>? ?? const [])
+            .map((d) => TripDocumentRecord.fromJson(d as Map<String, dynamic>))
             .toList(),
         offlineMapSlice: json['offlineMapSlice'] != null
             ? OfflineMapSlice.fromJson(json['offlineMapSlice'] as Map<String, dynamic>)

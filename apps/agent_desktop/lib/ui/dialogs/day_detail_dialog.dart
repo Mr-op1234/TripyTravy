@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pasteboard/pasteboard.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../../data/itinerary_database.dart';
 import '../../data/google_maps_helper.dart';
@@ -181,6 +180,7 @@ class AddDayDialog extends StatefulWidget {
 class _AddDayDialogState extends State<AddDayDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _dateController;
+  late final TextEditingController _descriptionController;
   bool _isSaving = false;
 
   @override
@@ -192,12 +192,16 @@ class _AddDayDialogState extends State<AddDayDialog> {
     _dateController = TextEditingController(
       text: widget.dayToEdit?.date ?? '',
     );
+    _descriptionController = TextEditingController(
+      text: widget.dayToEdit?.description ?? '',
+    );
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _dateController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -205,12 +209,17 @@ class _AddDayDialogState extends State<AddDayDialog> {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
+    final desc = _descriptionController.text.trim().isEmpty
+        ? null
+        : _descriptionController.text.trim();
+
     setState(() => _isSaving = true);
 
     try {
       if (widget.dayToEdit != null) {
         final updated = widget.dayToEdit!.copyWith(
           title: title,
+          description: desc,
           date: _dateController.text.trim().isEmpty
               ? null
               : _dateController.text.trim(),
@@ -222,6 +231,7 @@ class _AddDayDialogState extends State<AddDayDialog> {
           itineraryId: widget.itineraryId,
           dayNumber: widget.nextDayNumber,
           title: title,
+          description: desc,
           date: _dateController.text.trim().isEmpty
               ? null
               : _dateController.text.trim(),
@@ -336,6 +346,33 @@ class _AddDayDialogState extends State<AddDayDialog> {
                         const BorderSide(color: Color(0xFF2563EB), width: 1.5)),
               ),
               onSubmitted: (_) => _saveDay(),
+            ),
+            const SizedBox(height: 16),
+
+            // Day Description input
+            const Text(
+              'Day Description (Optional)',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF334155)),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _descriptionController,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'e.g. Arrive in Osaka and explore the lively Dotonbori area.',
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide:
+                        const BorderSide(color: Color(0xFF2563EB), width: 1.5)),
+              ),
             ),
             const SizedBox(height: 24),
 

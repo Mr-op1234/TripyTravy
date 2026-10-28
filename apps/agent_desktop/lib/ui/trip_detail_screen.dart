@@ -343,7 +343,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           ),
         );
       }
-    } catch (e, st) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -680,7 +680,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                             fontFamily: 'serif',
                             letterSpacing: -0.8,
                             height: 1.05,
-                            shadows: const [
+                            shadows: [
                               Shadow(
                                   color: Colors.black54,
                                   blurRadius: 4,
@@ -1141,6 +1141,19 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                         style: const TextStyle(
                             fontSize: 13, color: Color(0xFF64748B)),
                       ),
+                      if (day.description != null &&
+                          day.description!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          day.description!.trim(),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF475569),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ],
                   ),
                 ),

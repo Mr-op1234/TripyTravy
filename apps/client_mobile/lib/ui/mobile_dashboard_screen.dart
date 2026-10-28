@@ -13,7 +13,8 @@ final List<TripPackage> kInspirationDemoTrips = [
   const TripPackage(
     tripId: 'trip_osaka_demo',
     title: 'Osaka',
-    subtitle: 'Your journeys across the World',
+    subtitle:
+        'A vibrant city known for its historic landmarks, delicious street food, and energetic nightlife.',
     destinationTags: ['Japan', 'Osaka', 'Kansai'],
     startDateIso8601: '2025-05-20',
     endDateIso8601: '2025-05-23',
@@ -22,33 +23,82 @@ final List<TripPackage> kInspirationDemoTrips = [
       ItineraryDay(
         dayNumber: 1,
         dateIso8601: '2025-05-20',
-        title: 'Arrival in Osaka & Dotonbori',
+        title: 'Arrival & Dotonbori Walk',
+        description: 'Arrive in Osaka and explore the lively Dotonbori area.',
         primaryTimezoneIana: 'Asia/Tokyo',
       ),
       ItineraryDay(
         dayNumber: 2,
         dateIso8601: '2025-05-21',
-        title: 'Osaka Castle & Shinsekai',
+        title: 'Osaka Castle & Umeda Sky Building',
+        description:
+            'Visit Osaka Castle and enjoy panoramic views from Umeda Sky Building.',
         primaryTimezoneIana: 'Asia/Tokyo',
       ),
       ItineraryDay(
         dayNumber: 3,
         dateIso8601: '2025-05-22',
         title: 'Universal Studios Japan',
+        description:
+            'Spend the day at Universal Studios Japan for thrilling rides and entertainment.',
         primaryTimezoneIana: 'Asia/Tokyo',
       ),
       ItineraryDay(
         dayNumber: 4,
         dateIso8601: '2025-05-23',
-        title: 'Kuromon Market & Departure',
+        title: 'Shinsekai & Spa World',
+        description:
+            'Explore Shinsekai, enjoy local street food, and relax at Spa World.',
         primaryTimezoneIana: 'Asia/Tokyo',
+      ),
+    ],
+    documents: [
+      TripDocumentRecord(
+        id: 'doc_1',
+        title: 'Flight E-Ticket (KIX Arrival)',
+        docType: 'Flight',
+        description:
+            'Confirmed boarding pass & electronic booking for flight NH851',
+        fileName: 'kix_flight_ticket.pdf',
+        fileSize: '1.4 MB',
+        locationName: 'Kansai International Airport (KIX)',
+      ),
+      TripDocumentRecord(
+        id: 'doc_2',
+        title: 'Hotel Booking Confirmation',
+        docType: 'Hotel',
+        description:
+            'Deluxe Suite reservation voucher for 4 nights at Swissotel Nankai Osaka',
+        fileName: 'hotel_booking_swissotel.pdf',
+        fileSize: '840 KB',
+        locationName: 'Swissotel Nankai Osaka, Namba',
+      ),
+      TripDocumentRecord(
+        id: 'doc_3',
+        title: 'Universal Studios Japan Express Pass',
+        docType: 'Activity',
+        description:
+            'QR Code entry tickets & Super Nintendo World timed entry voucher',
+        fileName: 'usj_express_pass.pdf',
+        fileSize: '2.1 MB',
+        locationName: 'Universal Studios Japan, Konohana Ward',
+      ),
+      TripDocumentRecord(
+        id: 'doc_4',
+        title: 'Comprehensive Travel Insurance Policy',
+        docType: 'Insurance',
+        description:
+            'Medical, baggage & trip cancellation policy coverage documents',
+        fileName: 'tokio_marine_travel_insurance.pdf',
+        fileSize: '1.8 MB',
       ),
     ],
   ),
   const TripPackage(
     tripId: 'trip_tokyo_demo',
     title: 'Tokyo',
-    subtitle: 'Your journeys across the World',
+    subtitle:
+        'A bustling metropolis blending ultra-modern skyscrapers with historic temples and vibrant neon nightlife.',
     destinationTags: ['Japan', 'Tokyo', 'Kanto'],
     startDateIso8601: '2025-05-24',
     endDateIso8601: '2025-05-28',
@@ -58,38 +108,55 @@ final List<TripPackage> kInspirationDemoTrips = [
         dayNumber: 1,
         dateIso8601: '2025-05-24',
         title: 'Shinjuku & Shibuya Crossing',
+        description: 'Walk the iconic scramble and explore vibrant Shinjuku.',
         primaryTimezoneIana: 'Asia/Tokyo',
       ),
       ItineraryDay(
         dayNumber: 2,
         dateIso8601: '2025-05-25',
         title: 'Asakusa Senso-ji & Akihabara',
+        description:
+            'Experience historic temples and electronic anime culture.',
         primaryTimezoneIana: 'Asia/Tokyo',
       ),
       ItineraryDay(
         dayNumber: 3,
         dateIso8601: '2025-05-26',
         title: 'Ginza & Roppongi Hills',
+        description: 'Luxury shopping and panoramic Tokyo skyline views.',
         primaryTimezoneIana: 'Asia/Tokyo',
       ),
       ItineraryDay(
         dayNumber: 4,
         dateIso8601: '2025-05-27',
         title: 'Tokyo Tower & Odaiba',
+        description: 'Iconic orange tower observation deck and waterfront bay.',
         primaryTimezoneIana: 'Asia/Tokyo',
       ),
       ItineraryDay(
         dayNumber: 5,
         dateIso8601: '2025-05-28',
         title: 'Harajuku & Meiji Shrine',
+        description: 'Youth fashion street and serene forest shrine.',
         primaryTimezoneIana: 'Asia/Tokyo',
+      ),
+    ],
+    documents: [
+      TripDocumentRecord(
+        id: 'doc_tokyo_1',
+        title: 'Tokyo Skyliner Express Ticket',
+        docType: 'Transport',
+        description: 'Narita Airport to Ueno/Nippori express train voucher',
+        fileName: 'skyliner_express.pdf',
+        fileSize: '920 KB',
       ),
     ],
   ),
   const TripPackage(
     tripId: 'trip_kyoto_demo',
     title: 'Kyoto',
-    subtitle: 'Your journeys across the World',
+    subtitle:
+        'The cultural heart of Japan filled with thousands of classical Buddhist temples, gardens, and imperial palaces.',
     destinationTags: ['Japan', 'Kyoto', 'Kansai'],
     startDateIso8601: '2025-05-29',
     endDateIso8601: '2025-06-01',
@@ -99,25 +166,43 @@ final List<TripPackage> kInspirationDemoTrips = [
         dayNumber: 1,
         dateIso8601: '2025-05-29',
         title: 'Fushimi Inari-taisha & Gion',
+        description:
+            'Hike thousands of vermilion torii gates and stroll historic geisha streets.',
         primaryTimezoneIana: 'Asia/Tokyo',
       ),
       ItineraryDay(
         dayNumber: 2,
         dateIso8601: '2025-05-30',
         title: 'Arashiyama Bamboo Grove',
+        description:
+            'Walk through towering bamboo paths and visit monkey park.',
         primaryTimezoneIana: 'Asia/Tokyo',
       ),
       ItineraryDay(
         dayNumber: 3,
         dateIso8601: '2025-05-31',
         title: 'Kinkaku-ji Golden Pavilion',
+        description:
+            'Admire the Zen Buddhist temple covered in glittering gold leaf.',
         primaryTimezoneIana: 'Asia/Tokyo',
       ),
       ItineraryDay(
         dayNumber: 4,
         dateIso8601: '2025-06-01',
         title: 'Kiyomizu-dera & Departure',
+        description:
+            'Historic wooden stage overlooking cherry blossoms and city.',
         primaryTimezoneIana: 'Asia/Tokyo',
+      ),
+    ],
+    documents: [
+      TripDocumentRecord(
+        id: 'doc_kyoto_1',
+        title: 'JR Shinkansen Bullet Train Pass',
+        docType: 'Transport',
+        description: 'Nozomi bullet train reserved seats Kyoto to Tokyo',
+        fileName: 'shinkansen_ticket.pdf',
+        fileSize: '1.1 MB',
       ),
     ],
   ),
@@ -299,6 +384,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         builder: (_) => TravelerItineraryViewScreen(
           di: widget.di,
           trip: trip,
+          coverImageUrl: kDemoTripImages[trip.tripId],
         ),
       ),
     );
@@ -322,11 +408,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     final activeTrips = _trips.where((t) => !t.isCompleted).toList();
     final completedTrips = _trips.where((t) => t.isCompleted).toList();
 
-    final subtitleText = activeTrips.isNotEmpty
-        ? (activeTrips.first.subtitle.isNotEmpty
-            ? activeTrips.first.subtitle
-            : 'Your journeys across the World')
-        : 'Your personal travel companion';
+    const subtitleText = 'Your journeys across the World';
 
     return Scaffold(
       key: _scaffoldKey,

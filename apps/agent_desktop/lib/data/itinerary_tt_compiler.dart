@@ -29,7 +29,6 @@ class ItineraryTtCompiler {
       userPin: userPin,
       exportAsTemplate: isTemplate,
     );
-    
   }
 
   /// Converts desktop database entities into a domain `TripPackage`.
@@ -68,6 +67,7 @@ class ItineraryTtCompiler {
             dayNumber: dayItem.dayNumber,
             dateIso8601: dayItem.date ?? startIso,
             title: dayItem.title,
+            description: dayItem.description ?? '',
             primaryTimezoneIana: 'UTC',
             events: dayEvents,
           ),
@@ -85,6 +85,7 @@ class ItineraryTtCompiler {
             dayNumber: dn,
             dateIso8601: startIso,
             title: 'Day $dn',
+            description: '',
             primaryTimezoneIana: 'UTC',
             events: dayEvents,
           ),
@@ -97,11 +98,27 @@ class ItineraryTtCompiler {
           dayNumber: 1,
           dateIso8601: startIso,
           title: 'Day 1',
+          description: '',
           primaryTimezoneIana: 'UTC',
           events: const [],
         ),
       );
     }
+
+    // Map documents into domain documents
+    final mappedDocs = documents.map((doc) {
+      return TripDocumentRecord(
+        id: doc.id,
+        title: doc.title,
+        docType: doc.docType,
+        description: doc.description,
+        fileName: doc.fileName,
+        fileSize: doc.fileSize,
+        filePath: doc.filePath,
+        locationName: doc.locationName,
+        mapUrl: doc.mapUrl,
+      );
+    }).toList();
 
     // Embed documents into an additional Note event or summary if present
     if (documents.isNotEmpty && mappedDays.isNotEmpty) {
@@ -140,6 +157,7 @@ class ItineraryTtCompiler {
       isTemplate: isTemplate,
       isCompleted: false,
       days: mappedDays,
+      documents: mappedDocs,
     );
   }
 
