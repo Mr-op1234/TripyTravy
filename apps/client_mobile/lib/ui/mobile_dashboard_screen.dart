@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:tripytravy_core/tripytravy_core.dart';
 import '../di/mobile_di_container.dart';
 import 'completed_trips_screen.dart';
@@ -236,6 +237,8 @@ class MobileDashboardScreen extends StatefulWidget {
 
 class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  static const _intentChannel =
+      MethodChannel('com.tripytravy.client_mobile/file_intent');
   List<TripPackage> _trips = [];
   bool _isLoading = true;
 
@@ -243,6 +246,60 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
   void initState() {
     super.initState();
     _initDashboard();
+    _setupFileIntentListener();
+  }
+
+  void _setupFileIntentListener() {
+    _intentChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onFileOpened') {
+        final dynamic raw = call.arguments;
+        if (raw is Uint8List) {
+          await _importFromBytes(raw);
+        } else if (raw is List<dynamic>) {
+          await _importFromBytes(Uint8List.fromList(raw.cast<int>()));
+        }
+      }
+    });
+    _checkInitialFileIntent();
+  }
+
+  Future<void> _checkInitialFileIntent() async {
+    try {
+      final dynamic raw = await _intentChannel.invokeMethod('getInitialFile');
+      if (raw != null) {
+        if (raw is Uint8List) {
+          await _importFromBytes(raw);
+        } else if (raw is List<dynamic>) {
+          await _importFromBytes(Uint8List.fromList(raw.cast<int>()));
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _importFromBytes(Uint8List bytes) async {
+    try {
+      final imported =
+          await widget.di.tripManager.importTripFromContainer(bytes);
+      await _loadTrips();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Imported "${imported.title}" itinerary'),
+          backgroundColor: const Color(0xFF0D2356),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _openTripDetail(imported);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Import failed: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _initDashboard() async {

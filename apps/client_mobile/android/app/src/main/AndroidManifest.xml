@@ -26,6 +26,48 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- Intent filters for opening .tt itinerary files from File Manager, Downloads, WhatsApp, etc. -->
+            <intent-filter android:label="Tripy Travy Itinerary">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.tt" />
+                <data android:pathSuffix=".tt" />
+            </intent-filter>
+            <intent-filter android:label="Tripy Travy Itinerary">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="*/*" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.tt" />
+                <data android:pathSuffix=".tt" />
+            </intent-filter>
+            <intent-filter android:label="Tripy Travy Itinerary">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.tt" />
+                <data android:pathSuffix=".tt" />
+            </intent-filter>
+            <intent-filter android:label="Tripy Travy Itinerary">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/*" />
+                <data android:pathPattern=".*\\.tt" />
+                <data android:pathSuffix=".tt" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
