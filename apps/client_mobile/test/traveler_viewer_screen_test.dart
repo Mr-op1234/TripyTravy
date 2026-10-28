@@ -185,4 +185,86 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+      'Tapping a Day opens Day Details sheet showing event with PHOTOS and DOCUMENTS & PASSES',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    const tripWithDocsAndPhotos = TripPackage(
+      tripId: 'trip_swiss_test',
+      title: 'SwitzerLand',
+      subtitle: 'This is a trip from CCU to Switzerland',
+      startDateIso8601: '2026-11-01',
+      endDateIso8601: '2026-11-19',
+      primaryTimezoneIana: 'UTC',
+      days: [
+        ItineraryDay(
+          dayNumber: 1,
+          dateIso8601: '2026-11-01',
+          title: 'Day 1',
+          description: '1 events planned for SwitzerLand',
+          primaryTimezoneIana: 'UTC',
+          events: [
+            ItineraryEvent(
+              eventId: 'evt_docs_1',
+              eventType: EventType.note,
+              title: 'DOCS',
+              category: 'Info',
+              subCategory: 'Info',
+              startIso8601: '2026-11-01T09:00:00',
+              endIso8601: '2026-11-01T10:00:00',
+              timezoneIana: 'UTC',
+              photos: [
+                'assets/images/osaka.png',
+              ],
+              documents: [
+                TripDocumentRecord(
+                  id: 'att_1',
+                  title: 'Terminal Harness Agent.pdf',
+                  docType: 'PDF Document',
+                  fileName: 'Terminal Harness Agent.pdf',
+                  fileSize: '307 KB',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TravelerItineraryViewScreen(
+          di: testDi,
+          trip: tripWithDocsAndPhotos,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Tap Day 1 card
+    await tester.tap(find.text('Day 1'));
+    await tester.pumpAndSettle();
+
+    // Verify Day sheet header
+    expect(find.text('Day 1: Day 1'), findsOneWidget);
+    expect(find.text('Events & Schedule'), findsOneWidget);
+
+    // Verify Event title and badge
+    expect(find.text('DOCS'), findsOneWidget);
+    expect(find.text('INFO · INFO'), findsOneWidget);
+
+    // Verify PHOTOS section
+    expect(find.text('PHOTOS'), findsOneWidget);
+
+    // Verify DOCUMENTS & PASSES section
+    expect(find.text('DOCUMENTS & PASSES'), findsOneWidget);
+    expect(find.text('Terminal Harness Agent.pdf'), findsOneWidget);
+    expect(find.text('PDF Document · 307 KB'), findsOneWidget);
+    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+  });
 }

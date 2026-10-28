@@ -1,4 +1,5 @@
 import '../value_objects/geo_coordinate.dart';
+import 'trip_document_record.dart';
 
 enum EventType {
   flight,
@@ -388,6 +389,12 @@ class ItineraryEvent {
   final String endIso8601;
   final String timezoneIana;
   final List<String> attachmentAssetIds;
+  final String category;
+  final String subCategory;
+  final String? subDetail;
+  final String description;
+  final List<String> photos;
+  final List<TripDocumentRecord> documents;
   final FlightDetails? flight;
   final LodgingDetails? lodging;
   final TransportDetails? transport;
@@ -403,6 +410,12 @@ class ItineraryEvent {
     required this.endIso8601,
     required this.timezoneIana,
     this.attachmentAssetIds = const [],
+    this.category = '',
+    this.subCategory = '',
+    this.subDetail,
+    this.description = '',
+    this.photos = const [],
+    this.documents = const [],
     this.flight,
     this.lodging,
     this.transport,
@@ -417,6 +430,12 @@ class ItineraryEvent {
     String? endIso8601,
     String? timezoneIana,
     List<String>? attachmentAssetIds,
+    String? category,
+    String? subCategory,
+    String? subDetail,
+    String? description,
+    List<String>? photos,
+    List<TripDocumentRecord>? documents,
     FlightDetails? flight,
     LodgingDetails? lodging,
     TransportDetails? transport,
@@ -432,6 +451,12 @@ class ItineraryEvent {
       endIso8601: endIso8601 ?? this.endIso8601,
       timezoneIana: timezoneIana ?? this.timezoneIana,
       attachmentAssetIds: attachmentAssetIds ?? this.attachmentAssetIds,
+      category: category ?? this.category,
+      subCategory: subCategory ?? this.subCategory,
+      subDetail: subDetail ?? this.subDetail,
+      description: description ?? this.description,
+      photos: photos ?? this.photos,
+      documents: documents ?? this.documents,
       flight: flight ?? this.flight,
       lodging: lodging ?? this.lodging,
       transport: transport ?? this.transport,
@@ -449,6 +474,12 @@ class ItineraryEvent {
         'endIso8601': endIso8601,
         'timezoneIana': timezoneIana,
         'attachmentAssetIds': attachmentAssetIds,
+        if (category.isNotEmpty) 'category': category,
+        if (subCategory.isNotEmpty) 'subCategory': subCategory,
+        if (subDetail != null) 'subDetail': subDetail,
+        if (description.isNotEmpty) 'description': description,
+        if (photos.isNotEmpty) 'photos': photos,
+        if (documents.isNotEmpty) 'documents': documents.map((d) => d.toJson()).toList(),
         if (flight != null) 'flight': flight!.toJson(),
         if (lodging != null) 'lodging': lodging!.toJson(),
         if (transport != null) 'transport': transport!.toJson(),
@@ -467,6 +498,14 @@ class ItineraryEvent {
       endIso8601: (json['endIso8601'] as String?) ?? '',
       timezoneIana: (json['timezoneIana'] as String?) ?? 'UTC',
       attachmentAssetIds: (json['attachmentAssetIds'] as List<dynamic>? ?? const []).cast<String>(),
+      category: (json['category'] as String?) ?? '',
+      subCategory: (json['subCategory'] as String?) ?? '',
+      subDetail: json['subDetail'] as String?,
+      description: (json['description'] as String?) ?? '',
+      photos: (json['photos'] as List<dynamic>? ?? const []).cast<String>(),
+      documents: (json['documents'] as List<dynamic>? ?? const [])
+          .map((d) => TripDocumentRecord.fromJson(d as Map<String, dynamic>))
+          .toList(),
       flight: json['flight'] != null ? FlightDetails.fromJson(json['flight'] as Map<String, dynamic>) : null,
       lodging: json['lodging'] != null ? LodgingDetails.fromJson(json['lodging'] as Map<String, dynamic>) : null,
       transport: json['transport'] != null ? TransportDetails.fromJson(json['transport'] as Map<String, dynamic>) : null,

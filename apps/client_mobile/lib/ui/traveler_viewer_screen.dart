@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:tripytravy_core/tripytravy_core.dart';
 import '../di/mobile_di_container.dart';
@@ -609,63 +611,10 @@ class _TravelerItineraryViewScreenState
                           controller: scrollController,
                           itemCount: day.events.length,
                           separatorBuilder: (_, __) =>
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final ev = day.events[index];
-                            return Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border:
-                                    Border.all(color: const Color(0xFFE2E8F0)),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFEFF6FF),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.place_outlined,
-                                      color: Color(0xFF2563EB),
-                                      size: 16,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          ev.title,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                            color: Color(0xFF0F172A),
-                                          ),
-                                        ),
-                                        if (ev.note?.markdownBody.isNotEmpty ??
-                                            false) ...[
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            ev.note!.markdownBody,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Color(0xFF64748B),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
+                            return _buildEventCard(context, ev);
                           },
                         ),
                 ),
@@ -673,6 +622,441 @@ class _TravelerItineraryViewScreenState
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildEventCard(BuildContext context, ItineraryEvent ev) {
+    final hasPhotos = ev.photos.isNotEmpty;
+    final hasDocs = ev.documents.isNotEmpty;
+    final hasDesc = ev.description.isNotEmpty ||
+        (ev.note?.markdownBody.isNotEmpty ?? false);
+    final desc = ev.description.isNotEmpty
+        ? ev.description
+        : (ev.note?.markdownBody ?? '');
+
+    // Determine category badge icon and color
+    Color badgeBg = const Color(0xFFEFF6FF);
+    Color badgeColor = const Color(0xFF2563EB);
+    IconData badgeIcon = Icons.place_outlined;
+
+    final catLower = ev.category.toLowerCase();
+    final subCatLower = ev.subCategory.toLowerCase();
+
+    if (catLower.contains('flight') || subCatLower.contains('flight')) {
+      badgeBg = const Color(0xFFEEF2FF);
+      badgeColor = const Color(0xFF4F46E5);
+      badgeIcon = Icons.flight_rounded;
+    } else if (catLower.contains('lodging') || catLower.contains('hotel')) {
+      badgeBg = const Color(0xFFECFDF5);
+      badgeColor = const Color(0xFF059669);
+      badgeIcon = Icons.hotel_rounded;
+    } else if (catLower.contains('transport') ||
+        subCatLower.contains('drive') ||
+        subCatLower.contains('train')) {
+      badgeBg = const Color(0xFFF0F9FF);
+      badgeColor = const Color(0xFF0284C7);
+      badgeIcon = Icons.directions_bus_rounded;
+    } else if (catLower.contains('meal') || catLower.contains('food')) {
+      badgeBg = const Color(0xFFFFFBEB);
+      badgeColor = const Color(0xFFD97706);
+      badgeIcon = Icons.restaurant_rounded;
+    } else if (catLower.contains('info') ||
+        catLower.contains('note') ||
+        ev.title.toLowerCase().contains('doc')) {
+      badgeBg = const Color(0xFFEEF2FF);
+      badgeColor = const Color(0xFF4F46E5);
+      badgeIcon = Icons.info_outline_rounded;
+    }
+
+    final categoryLabel = ev.subCategory.isNotEmpty
+        ? '${ev.category.isNotEmpty ? ev.category : "Event"} · ${ev.subCategory}'
+        : (ev.category.isNotEmpty ? ev.category : '');
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row: Badge, Category Tag, Title
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: badgeBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(badgeIcon, color: badgeColor, size: 18),
+              ),
+              const SizedBox(width: 10),
+              if (categoryLabel.isNotEmpty) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    categoryLabel.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  ev.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    letterSpacing: 0.3,
+                    color: Color(0xFF0F172A),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+
+          // Description
+          if (hasDesc) ...[
+            const SizedBox(height: 10),
+            Text(
+              desc,
+              style: const TextStyle(
+                  fontSize: 13, color: Color(0xFF475569), height: 1.4),
+            ),
+          ],
+
+          // PHOTOS Gallery
+          if (hasPhotos) ...[
+            const SizedBox(height: 14),
+            const Text(
+              'PHOTOS',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.8,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 76,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: ev.photos.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (ctx, pIdx) {
+                  final photo = ev.photos[pIdx];
+                  return GestureDetector(
+                    onTap: () => _viewPhoto(context, photo),
+                    child: Container(
+                      width: 100,
+                      height: 76,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                        color: const Color(0xFFF1F5F9),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: _buildPhotoWidget(photo),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+
+          // DOCUMENTS & PASSES
+          if (hasDocs) ...[
+            const SizedBox(height: 14),
+            const Text(
+              'DOCUMENTS & PASSES',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.8,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Column(
+              children: ev.documents
+                  .map((doc) => _buildEventDocumentPill(context, doc))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventDocumentPill(BuildContext context, TripDocumentRecord doc) {
+    final subtitle = doc.fileSize.isNotEmpty
+        ? '${doc.docType} · ${doc.fileSize}'
+        : doc.docType;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      height: 56,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.horizontal(left: Radius.circular(11)),
+            ),
+            child: const Center(
+              child: Icon(Icons.attach_file_rounded,
+                  size: 20, color: Color(0xFF475569)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  doc.title,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style:
+                      const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Preview / View Document',
+            onPressed: () => _showDocumentDetails(context, doc),
+            icon: const Icon(Icons.visibility_outlined,
+                size: 20, color: Color(0xFF2563EB)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoWidget(String photo) {
+    if (photo.startsWith('data:image/') ||
+        (!photo.startsWith('http') &&
+            !photo.startsWith('assets') &&
+            photo.length > 100)) {
+      try {
+        final comma = photo.indexOf(',');
+        final base64Str = comma != -1 ? photo.substring(comma + 1) : photo;
+        final bytes = base64Decode(base64Str);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _photoFallback(),
+        );
+      } catch (_) {
+        return _photoFallback();
+      }
+    } else if (photo.startsWith('http://') || photo.startsWith('https://')) {
+      return Image.network(
+        photo,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _photoFallback(),
+      );
+    } else if (photo.startsWith('assets/')) {
+      return Image.asset(
+        photo,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _photoFallback(),
+      );
+    } else {
+      final file = File(photo);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _photoFallback(),
+        );
+      }
+      return _photoFallback();
+    }
+  }
+
+  Widget _photoFallback() => const Center(
+        child: Icon(Icons.broken_image_rounded,
+            color: Color(0xFF94A3B8), size: 24),
+      );
+
+  void _viewPhoto(BuildContext context, String photo) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                  icon: const Icon(Icons.close_rounded,
+                      color: Colors.white, size: 22),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: InteractiveViewer(
+                panEnabled: true,
+                minScale: 0.8,
+                maxScale: 4.0,
+                child: _buildPhotoWidget(photo),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDocumentDetails(BuildContext context, TripDocumentRecord doc) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.description_rounded,
+                      color: Color(0xFF2563EB), size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        doc.title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${doc.docType}${doc.fileSize.isNotEmpty ? " · ${doc.fileSize}" : ""}',
+                        style: const TextStyle(
+                            fontSize: 13, color: Color(0xFF64748B)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (doc.description.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                doc.description,
+                style: const TextStyle(
+                    fontSize: 13.5, color: Color(0xFF334155), height: 1.4),
+              ),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content:
+                          Text('Document "${doc.title}" is verified and active.'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                label: const Text('OK',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

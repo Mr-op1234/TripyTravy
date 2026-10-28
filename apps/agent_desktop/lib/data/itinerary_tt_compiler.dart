@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:tripytravy_core/tripytravy_core.dart';
 import '../di/hexagonal_di_container.dart';
 import 'itinerary_database.dart';
@@ -144,6 +145,18 @@ class ItineraryTtCompiler {
       );
     }
 
+    // Collect all documents including event-level attachments
+    final allDocs = <TripDocumentRecord>[...mappedDocs];
+    for (final day in mappedDays) {
+      for (final ev in day.events) {
+        for (final edoc in ev.documents) {
+          if (!allDocs.any((d) => d.id == edoc.id || (d.fileName.isNotEmpty && d.fileName == edoc.fileName))) {
+            allDocs.add(edoc);
+          }
+        }
+      }
+    }
+
     return TripPackage(
       tripId: trip.id.toString(),
       title: trip.title,
@@ -157,7 +170,7 @@ class ItineraryTtCompiler {
       isTemplate: isTemplate,
       isCompleted: false,
       days: mappedDays,
-      documents: mappedDocs,
+      documents: allDocs,
     );
   }
 
@@ -220,6 +233,68 @@ class ItineraryTtCompiler {
       );
     }
 
+    // Process photos (embed local photos as base64 data URIs so they travel in .tt offline)
+    final mappedPhotos = <String>[];
+    for (final p in e.photos) {
+      if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:image/')) {
+        mappedPhotos.add(p);
+      } else {
+        try {
+          final file = File(p);
+          if (file.existsSync()) {
+            final bytes = file.readAsBytesSync();
+            if (bytes.length <= 4 * 1024 * 1024) {
+              final ext = p.split('.').last.toLowerCase();
+              final mime = ext == 'png' ? 'image/png' : (ext == 'webp' ? 'image/webp' : 'image/jpeg');
+              mappedPhotos.add('data:$mime;base64,${base64Encode(bytes)}');
+              continue;
+            }
+          }
+        } catch (_) {}
+        mappedPhotos.add(p);
+      }
+    }
+
+    // Process event attachments (vouchers, passes, PDFs)
+    final mappedEventDocs = <TripDocumentRecord>[];
+    final rawAttachments = e.attachments;
+    for (var i = 0; i < rawAttachments.length; i++) {
+      final att = rawAttachments[i];
+      final name = att['name'] ?? 'Document';
+      final size = att['size'] ?? '';
+      final path = att['path'] ?? '';
+      final ext = name.contains('.') ? name.split('.').last.toUpperCase() : 'DOC';
+      final docType = ext == 'PDF' ? 'PDF Document' : '$ext Document';
+
+      String? base64Data;
+      if (path.isNotEmpty) {
+        try {
+          final file = File(path);
+          if (file.existsSync()) {
+            final bytes = file.readAsBytesSync();
+            if (bytes.length <= 10 * 1024 * 1024) {
+              base64Data = base64Encode(bytes);
+            }
+          }
+        } catch (_) {}
+      }
+
+      mappedEventDocs.add(
+        TripDocumentRecord(
+          id: 'att_${e.id}_$i',
+          title: name,
+          docType: docType,
+          description: 'Document attached to ${e.title}',
+          fileName: name,
+          fileSize: size,
+          filePath: path,
+          locationName: e.locationName ?? e.location,
+          mapUrl: e.mapUrl,
+          base64Data: base64Data,
+        ),
+      );
+    }
+
     return ItineraryEvent(
       eventId: e.id,
       eventType: type,
@@ -227,6 +302,12 @@ class ItineraryTtCompiler {
       startIso8601: startIso,
       endIso8601: endIso,
       timezoneIana: 'UTC',
+      category: e.category,
+      subCategory: e.subCategory,
+      subDetail: e.subDetail,
+      description: e.description,
+      photos: mappedPhotos,
+      documents: mappedEventDocs,
       flight: flight,
       lodging: lodging,
       transport: transport,

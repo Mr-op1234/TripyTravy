@@ -1,6 +1,7 @@
 library tripytravy_core;
 
 export 'domain/entities/attachment_descriptor.dart';
+export 'domain/entities/trip_document_record.dart';
 export 'domain/entities/itinerary_event.dart';
 export 'domain/entities/traveler_checklist.dart';
 export 'domain/entities/trip_package.dart';

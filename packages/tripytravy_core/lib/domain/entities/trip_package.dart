@@ -1,5 +1,7 @@
 import 'attachment_descriptor.dart';
 import 'itinerary_event.dart';
+import 'trip_document_record.dart';
+export 'trip_document_record.dart';
 
 class TravelerProfile {
   final String travelerId;
@@ -85,55 +87,7 @@ class OfflineMapSlice {
       );
 }
 
-/// Trip Document and Information record exported from the Agent side
-class TripDocumentRecord {
-  final String id;
-  final String title;
-  final String docType;
-  final String description;
-  final String fileName;
-  final String fileSize;
-  final String filePath;
-  final String? locationName;
-  final String? mapUrl;
-
-  const TripDocumentRecord({
-    required this.id,
-    required this.title,
-    this.docType = 'general',
-    this.description = '',
-    this.fileName = '',
-    this.fileSize = '',
-    this.filePath = '',
-    this.locationName,
-    this.mapUrl,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'docType': docType,
-        'description': description,
-        'fileName': fileName,
-        'fileSize': fileSize,
-        'filePath': filePath,
-        'locationName': locationName,
-        'mapUrl': mapUrl,
-      };
-
-  factory TripDocumentRecord.fromJson(Map<String, dynamic> json) =>
-      TripDocumentRecord(
-        id: (json['id'] as String?) ?? '',
-        title: (json['title'] as String?) ?? '',
-        docType: (json['docType'] as String?) ?? 'general',
-        description: (json['description'] as String?) ?? '',
-        fileName: (json['fileName'] as String?) ?? '',
-        fileSize: (json['fileSize'] as String?) ?? '',
-        filePath: (json['filePath'] as String?) ?? '',
-        locationName: json['locationName'] as String?,
-        mapUrl: json['mapUrl'] as String?,
-      );
-}
+// TripDocumentRecord is exported from trip_document_record.dart
 
 class ItineraryDay {
   final int dayNumber;
