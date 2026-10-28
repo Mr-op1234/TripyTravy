@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:tripytravy_core/tripytravy_core.dart';
 import '../di/mobile_di_container.dart';
 import 'widgets/trip_card_widget.dart';
@@ -381,118 +383,132 @@ class _TravelerItineraryViewScreenState
                               const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final doc = docs[index];
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                            return Material(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(14),
+                              child: InkWell(
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                    color: const Color(0xFFE2E8F0)),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF2563EB)
-                                          .withValues(alpha: 0.1),
-                                      borderRadius:
-                                          BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.description_rounded,
-                                      color: Color(0xFF2563EB),
-                                      size: 18,
-                                    ),
+                                onTap: () => _openDocument(context, doc),
+                                child: Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                        color: const Color(0xFFE2E8F0)),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                doc.title,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14.5,
-                                                  color: Color(0xFF0F172A),
-                                                ),
-                                              ),
-                                            ),
-                                            if (doc.docType.isNotEmpty)
-                                              Container(
-                                                padding: const EdgeInsets
-                                                    .symmetric(
-                                                    horizontal: 7, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFFE0E7FF),
-                                                  borderRadius:
-                                                      BorderRadius.circular(6),
-                                                ),
-                                                child: Text(
-                                                  doc.docType.toUpperCase(),
-                                                  style: const TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: Color(0xFF3730A3),
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF2563EB)
+                                              .withValues(alpha: 0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
-                                        if (doc.description.isNotEmpty) ...[
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            doc.description,
-                                            style: const TextStyle(
-                                              fontSize: 12.5,
-                                              color: Color(0xFF475569),
-                                            ),
-                                          ),
-                                        ],
-                                        if (doc.fileName.isNotEmpty) ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${doc.fileName}${doc.fileSize.isNotEmpty ? " • ${doc.fileSize}" : ""}',
-                                            style: const TextStyle(
-                                              fontSize: 11.5,
-                                              color: Color(0xFF94A3B8),
-                                            ),
-                                          ),
-                                        ],
-                                        if (doc.locationName != null &&
-                                            doc.locationName!.isNotEmpty) ...[
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              const Icon(Icons.location_on_outlined,
-                                                  size: 13,
-                                                  color: Color(0xFF64748B)),
-                                              const SizedBox(width: 3),
-                                              Expanded(
-                                                child: Text(
-                                                  doc.locationName!,
-                                                  style: const TextStyle(
-                                                    fontSize: 11.5,
-                                                    color: Color(0xFF64748B),
+                                        child: const Icon(
+                                          Icons.description_rounded,
+                                          color: Color(0xFF2563EB),
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    doc.title,
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 14.5,
+                                                      color: Color(0xFF0F172A),
+                                                    ),
                                                   ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
+                                                ),
+                                                if (doc.docType.isNotEmpty)
+                                                  Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 7, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFE0E7FF),
+                                                      borderRadius:
+                                                          BorderRadius.circular(6),
+                                                    ),
+                                                    child: Text(
+                                                      doc.docType.toUpperCase(),
+                                                      style: const TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: Color(0xFF3730A3),
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                            if (doc.description.isNotEmpty) ...[
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                doc.description,
+                                                style: const TextStyle(
+                                                  fontSize: 12.5,
+                                                  color: Color(0xFF475569),
                                                 ),
                                               ),
                                             ],
-                                          ),
-                                        ],
-                                      ],
-                                    ),
+                                            if (doc.fileName.isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                '${doc.fileName}${doc.fileSize.isNotEmpty ? " • ${doc.fileSize}" : ""}',
+                                                style: const TextStyle(
+                                                  fontSize: 11.5,
+                                                  color: Color(0xFF94A3B8),
+                                                ),
+                                              ),
+                                            ],
+                                            if (doc.locationName != null &&
+                                                doc.locationName!.isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  const Icon(Icons.location_on_outlined,
+                                                      size: 13,
+                                                      color: Color(0xFF64748B)),
+                                                  const SizedBox(width: 3),
+                                                  Expanded(
+                                                    child: Text(
+                                                      doc.locationName!,
+                                                      style: const TextStyle(
+                                                        fontSize: 11.5,
+                                                        color: Color(0xFF64748B),
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        icon: const Icon(Icons.open_in_new_rounded,
+                                            size: 18, color: Color(0xFF2563EB)),
+                                        onPressed: () => _openDocument(context, doc),
+                                        tooltip: 'Open',
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                             );
                           },
@@ -826,54 +842,62 @@ class _TravelerItineraryViewScreenState
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.horizontal(left: Radius.circular(11)),
-            ),
-            child: const Center(
-              child: Icon(Icons.attach_file_rounded,
-                  size: 20, color: Color(0xFF475569)),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  doc.title,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openDocument(context, doc),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF1F5F9),
+                  borderRadius:
+                      BorderRadius.horizontal(left: Radius.circular(11)),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style:
-                      const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: const Center(
+                  child: Icon(Icons.attach_file_rounded,
+                      size: 20, color: Color(0xFF475569)),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      doc.title,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                          fontSize: 11.5, color: Color(0xFF64748B)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Open Document',
+                onPressed: () => _openDocument(context, doc),
+                icon: const Icon(Icons.visibility_outlined,
+                    size: 20, color: Color(0xFF2563EB)),
+              ),
+            ],
           ),
-          IconButton(
-            tooltip: 'Preview / View Document',
-            onPressed: () => _showDocumentDetails(context, doc),
-            icon: const Icon(Icons.visibility_outlined,
-                size: 20, color: Color(0xFF2563EB)),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -961,6 +985,78 @@ class _TravelerItineraryViewScreenState
     );
   }
 
+  Future<void> _openDocument(BuildContext context, TripDocumentRecord doc) async {
+    try {
+      File? fileToOpen;
+      if (doc.base64Data != null && doc.base64Data!.isNotEmpty) {
+        final comma = doc.base64Data!.indexOf(',');
+        final cleanBase64 =
+            comma != -1 ? doc.base64Data!.substring(comma + 1) : doc.base64Data!;
+        final bytes = base64Decode(cleanBase64.replaceAll(RegExp(r'\s+'), ''));
+        final tempDir = await getTemporaryDirectory();
+        final ext = (doc.fileName.contains('.')
+                ? ''
+                : (doc.docType.toLowerCase().contains('pdf') ? '.pdf' : ''))
+            .trim();
+        final rawName = doc.fileName.isNotEmpty ? doc.fileName : doc.title;
+        final safeName = rawName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+        final targetFileName = '$safeName$ext';
+        final file = File('${tempDir.path}/$targetFileName');
+        await file.writeAsBytes(bytes, flush: true);
+        fileToOpen = file;
+      } else if (doc.filePath.isNotEmpty) {
+        final f = File(doc.filePath);
+        if (await f.exists()) {
+          fileToOpen = f;
+        }
+      }
+
+      if (fileToOpen != null && await fileToOpen.exists()) {
+        String mimeType = 'application/octet-stream';
+        final pathLower = fileToOpen.path.toLowerCase();
+        if (pathLower.endsWith('.pdf')) {
+          mimeType = 'application/pdf';
+        } else if (pathLower.endsWith('.png')) {
+          mimeType = 'image/png';
+        } else if (pathLower.endsWith('.jpg') || pathLower.endsWith('.jpeg')) {
+          mimeType = 'image/jpeg';
+        } else if (pathLower.endsWith('.txt')) {
+          mimeType = 'text/plain';
+        } else if (pathLower.endsWith('.docx')) {
+          mimeType =
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        } else if (pathLower.endsWith('.doc')) {
+          mimeType = 'application/msword';
+        }
+
+        const platform =
+            MethodChannel('com.tripytravy.client_mobile/file_intent');
+        await platform.invokeMethod('openFile', {
+          'path': fileToOpen.path,
+          'mimeType': mimeType,
+        });
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Document file data is not available in itinerary.'),
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open document: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+
   void _showDocumentDetails(BuildContext context, TripDocumentRecord doc) {
     showModalBottomSheet(
       context: context,
@@ -1030,30 +1126,46 @@ class _TravelerItineraryViewScreenState
               ),
             ],
             const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content:
-                          Text('Document "${doc.title}" is verified and active.'),
-                      duration: const Duration(seconds: 2),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF64748B),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Close',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-                label: const Text('OK',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _openDocument(context, doc);
+                      },
+                      icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                      label: const Text('Open File',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
