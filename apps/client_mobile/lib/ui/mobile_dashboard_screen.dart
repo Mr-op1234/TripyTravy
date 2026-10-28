@@ -690,6 +690,16 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.travel_explore_rounded,
+                  color: Color(0xFF0D2356)),
+              title: const Text('Load Demo Trips'),
+              subtitle: const Text('Osaka, Tokyo & Kyoto inspirations'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _loadInspirationDemoTrips();
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.delete_sweep_outlined,
                   color: Colors.redAccent),
               title: const Text('Clear All Trips'),
