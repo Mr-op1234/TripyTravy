@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'google_maps_helper.dart';
 
+const Object _sentinel = Object();
+
 class DestinationItem {
   final int id;
   final String title;
@@ -82,10 +84,10 @@ class DestinationItem {
     String? duration,
     String? dateRange,
     String? imagePath,
-    String? startDate,
-    String? endDate,
-    String? tagline,
-    String? description,
+    Object? startDate = _sentinel,
+    Object? endDate = _sentinel,
+    Object? tagline = _sentinel,
+    Object? description = _sentinel,
   }) {
     return DestinationItem(
       id: id ?? this.id,
@@ -94,10 +96,18 @@ class DestinationItem {
       duration: duration ?? this.duration,
       dateRange: dateRange ?? this.dateRange,
       imagePath: imagePath ?? this.imagePath,
-      startDate: startDate ?? this.startDate,
-      endDate: endDate ?? this.endDate,
-      tagline: tagline ?? this.tagline,
-      description: description ?? this.description,
+      startDate: identical(startDate, _sentinel)
+          ? this.startDate
+          : startDate as String?,
+      endDate: identical(endDate, _sentinel)
+          ? this.endDate
+          : endDate as String?,
+      tagline: identical(tagline, _sentinel)
+          ? this.tagline
+          : tagline as String?,
+      description: identical(description, _sentinel)
+          ? this.description
+          : description as String?,
     );
   }
 }
@@ -151,8 +161,8 @@ class TripDayItem {
     int? itineraryId,
     int? dayNumber,
     String? title,
-    String? date,
-    String? description,
+    Object? date = _sentinel,
+    Object? description = _sentinel,
     int? sortOrder,
   }) {
     return TripDayItem(
@@ -160,8 +170,10 @@ class TripDayItem {
       itineraryId: itineraryId ?? this.itineraryId,
       dayNumber: dayNumber ?? this.dayNumber,
       title: title ?? this.title,
-      date: date ?? this.date,
-      description: description ?? this.description,
+      date: identical(date, _sentinel) ? this.date : date as String?,
+      description: identical(description, _sentinel)
+          ? this.description
+          : description as String?,
       sortOrder: sortOrder ?? this.sortOrder,
     );
   }

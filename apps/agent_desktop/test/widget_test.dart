@@ -210,6 +210,25 @@ void main() {
       days = await ItineraryDatabase.instance.getDaysForItinerary(trip.id);
       expect(days.first.title, 'Day 1 - Land in Zurich & Hotel Check-in');
 
+      // 2b. Update Day to add description then clear it with null
+      final dayWithDesc = updatedDay.copyWith(
+        description: 'Explore old town',
+        date: '24-10-2026',
+      );
+      await ItineraryDatabase.instance.updateDay(dayWithDesc);
+      days = await ItineraryDatabase.instance.getDaysForItinerary(trip.id);
+      expect(days.first.description, 'Explore old town');
+      expect(days.first.date, '24-10-2026');
+
+      final clearedDay = days.first.copyWith(
+        description: null,
+        date: null,
+      );
+      await ItineraryDatabase.instance.updateDay(clearedDay);
+      days = await ItineraryDatabase.instance.getDaysForItinerary(trip.id);
+      expect(days.first.description, isNull);
+      expect(days.first.date, isNull);
+
       // 3. Insert Event attached to Day
       final event = TripEventItem(
         id: 'evt_day1_1',
