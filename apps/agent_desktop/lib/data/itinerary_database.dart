@@ -1032,6 +1032,44 @@ class ItineraryDatabase {
     return null;
   }
 
+  static DateTime? parseFlexibleDate(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final text = raw.trim();
+    final iso = DateTime.tryParse(text);
+    if (iso != null) return iso;
+
+    final dmyMatch =
+        RegExp(r'^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$').firstMatch(text);
+    if (dmyMatch != null) {
+      final day = int.tryParse(dmyMatch.group(1)!);
+      final month = int.tryParse(dmyMatch.group(2)!);
+      final year = int.tryParse(dmyMatch.group(3)!);
+      if (day != null && month != null && year != null) {
+        return DateTime(year, month, day);
+      }
+    }
+    return null;
+  }
+
+  static int parseDurationDays(String duration,
+      {String? startDate, String? endDate}) {
+    if (startDate != null && endDate != null) {
+      final start = parseFlexibleDate(startDate);
+      final end = parseFlexibleDate(endDate);
+      if (start != null && end != null) {
+        final diff = end.difference(start).inDays + 1;
+        if (diff > 0) return diff;
+      }
+    }
+    final match =
+        RegExp(r'(\d+)\s*Day', caseSensitive: false).firstMatch(duration);
+    if (match != null) {
+      final parsed = int.tryParse(match.group(1)!);
+      if (parsed != null && parsed > 0) return parsed;
+    }
+    return 1;
+  }
+
   Future<DestinationItem> insertItinerary({
     required String title,
     required String subtitle,
@@ -1042,6 +1080,7 @@ class ItineraryDatabase {
     String? endDate,
     String? tagline,
     String? description,
+    bool autoCreateDays = false,
   }) async {
     final db = await database;
     final id = await db.insert('itineraries', {
@@ -1055,7 +1094,7 @@ class ItineraryDatabase {
       'tagline': tagline,
       'description': description,
     });
-    return DestinationItem(
+    final item = DestinationItem(
       id: id,
       title: title,
       subtitle: subtitle,
@@ -1067,6 +1106,10 @@ class ItineraryDatabase {
       tagline: tagline,
       description: description,
     );
+    if (autoCreateDays) {
+      await autoCreateDaysForItinerary(item);
+    }
+    return item;
   }
 
   Future<int> deleteItinerary(int id) async {
@@ -1094,6 +1137,127 @@ class ItineraryDatabase {
       orderBy: 'sort_order ASC, day_number ASC, id ASC',
     );
     return maps.map((m) => TripDayItem.fromMap(m)).toList();
+  }
+
+  Future<List<TripDayItem>> autoCreateDaysForItinerary(
+      DestinationItem trip) async {
+    final existingDays = await getDaysForItinerary(trip.id);
+    if (existingDays.isNotEmpty) {
+      return existingDays;
+    }
+
+    final int dayCount = parseDurationDays(
+      trip.duration,
+      startDate: trip.startDate,
+      endDate: trip.endDate,
+    );
+
+    DateTime? startDate = parseFlexibleDate(trip.startDate);
+    if (startDate == null && trip.dateRange.isNotEmpty) {
+      final rangeMatch =
+          RegExp(r'(\d{2}-\d{2}-\d{4})\s*->\s*(\d{2}-\d{2}-\d{4})')
+              .firstMatch(trip.dateRange);
+      if (rangeMatch != null) {
+        startDate = parseFlexibleDate(rangeMatch.group(1));
+      }
+    }
+
+    final createdDays = <TripDayItem>[];
+    for (int i = 1; i <= dayCount; i++) {
+      String? dateStr;
+      if (startDate != null) {
+        final d = startDate.add(Duration(days: i - 1));
+        dateStr =
+            '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
+      }
+      final dayItem = TripDayItem(
+        id: 'day_${trip.id}_${i}_${DateTime.now().microsecondsSinceEpoch}',
+        itineraryId: trip.id,
+        dayNumber: i,
+        title: 'Day $i',
+        date: dateStr,
+        sortOrder: i - 1,
+      );
+      await insertDay(dayItem);
+      createdDays.add(dayItem);
+    }
+    return createdDays;
+  }
+
+  Future<void> syncDaysWithDuration(DestinationItem trip) async {
+    final existingDays = await getDaysForItinerary(trip.id);
+    final int targetCount = parseDurationDays(
+      trip.duration,
+      startDate: trip.startDate,
+      endDate: trip.endDate,
+    );
+
+    if (existingDays.isEmpty) {
+      await autoCreateDaysForItinerary(trip);
+      return;
+    }
+
+    DateTime? startDate = parseFlexibleDate(trip.startDate);
+    if (startDate == null && trip.dateRange.isNotEmpty) {
+      final rangeMatch =
+          RegExp(r'(\d{2}-\d{2}-\d{4})\s*->\s*(\d{2}-\d{2}-\d{4})')
+              .firstMatch(trip.dateRange);
+      if (rangeMatch != null) {
+        startDate = parseFlexibleDate(rangeMatch.group(1));
+      }
+    }
+
+    // Update dates on existing days if start date is known
+    if (startDate != null) {
+      for (int i = 0; i < existingDays.length; i++) {
+        final currentDay = existingDays[i];
+        final expectedDate =
+            startDate.add(Duration(days: currentDay.dayNumber - 1));
+        final expectedDateStr =
+            '${expectedDate.day.toString().padLeft(2, '0')}-${expectedDate.month.toString().padLeft(2, '0')}-${expectedDate.year}';
+        if (currentDay.date != expectedDateStr) {
+          await updateDay(currentDay.copyWith(date: expectedDateStr));
+        }
+      }
+    }
+
+    // If duration increased, append new days
+    if (targetCount > existingDays.length) {
+      final maxDayNumber = existingDays
+          .map((d) => d.dayNumber)
+          .fold<int>(0, (max, dn) => dn > max ? dn : max);
+
+      for (int dn = maxDayNumber + 1; dn <= targetCount; dn++) {
+        String? dateStr;
+        if (startDate != null) {
+          final d = startDate.add(Duration(days: dn - 1));
+          dateStr =
+              '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
+        }
+        final newDay = TripDayItem(
+          id: 'day_${trip.id}_${dn}_${DateTime.now().microsecondsSinceEpoch}',
+          itineraryId: trip.id,
+          dayNumber: dn,
+          title: 'Day $dn',
+          date: dateStr,
+          sortOrder: dn - 1,
+        );
+        await insertDay(newDay);
+      }
+    } else if (targetCount < existingDays.length) {
+      // If duration decreased, remove empty days beyond targetCount
+      final events = await getEventsForItinerary(trip.id);
+      for (final day in existingDays) {
+        if (day.dayNumber > targetCount) {
+          final hasEvents = events.any((e) =>
+              e.dayId == day.id ||
+              (e.dayId == null && e.dayNumber == day.dayNumber));
+          if (!hasEvents) {
+            await deleteDay(day.id);
+          }
+        }
+      }
+    }
   }
 
   Future<int> insertDay(TripDayItem day) async {

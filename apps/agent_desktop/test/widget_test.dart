@@ -252,6 +252,53 @@ void main() {
       expect(remainingEvents, isEmpty);
     });
 
+    test(
+        'Auto-creates days matching duration and start/end dates for new trips',
+        () async {
+      // 1. Create a 7-day trip with dates Oct 29, 2026 to Nov 4, 2026
+      final trip = await ItineraryDatabase.instance.insertItinerary(
+        title: 'Japan Autumn Journey',
+        subtitle: 'Tokyo, Kyoto and Osaka',
+        duration: '7 Days',
+        dateRange: 'Oct 29 - Nov 4, 2026',
+        imagePath: '',
+        startDate: '2026-10-29',
+        endDate: '2026-11-04',
+        autoCreateDays: true,
+      );
+
+      final days = await ItineraryDatabase.instance.getDaysForItinerary(trip.id);
+      expect(days.length, 7);
+
+      expect(days[0].dayNumber, 1);
+      expect(days[0].title, 'Day 1');
+      expect(days[0].date, '29-10-2026');
+
+      expect(days[1].dayNumber, 2);
+      expect(days[1].title, 'Day 2');
+      expect(days[1].date, '30-10-2026');
+
+      expect(days[6].dayNumber, 7);
+      expect(days[6].title, 'Day 7');
+      expect(days[6].date, '04-11-2026');
+
+      // 2. Test syncDaysWithDuration when extending trip to 9 days
+      final extendedTrip = trip.copyWith(
+        duration: '9 Days',
+        endDate: '2026-11-06',
+        dateRange: 'Oct 29 - Nov 6, 2026',
+      );
+      await ItineraryDatabase.instance.syncDaysWithDuration(extendedTrip);
+
+      final syncedDays =
+          await ItineraryDatabase.instance.getDaysForItinerary(trip.id);
+      expect(syncedDays.length, 9);
+      expect(syncedDays[7].dayNumber, 8);
+      expect(syncedDays[7].date, '05-11-2026');
+      expect(syncedDays[8].dayNumber, 9);
+      expect(syncedDays[8].date, '06-11-2026');
+    });
+
     test('Starts with empty database when no itineraries are added', () async {
       final items = await ItineraryDatabase.instance.getAllItineraries();
       expect(items, isEmpty);

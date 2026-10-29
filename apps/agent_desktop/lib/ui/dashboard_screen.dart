@@ -130,7 +130,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         itemToEdit: itemToEdit,
         onSave: (savedItem) async {
           if (itemToEdit == null) {
-            // Create new trip
+            // Create new trip with auto-created days matching duration
             final created = await ItineraryDatabase.instance.insertItinerary(
               title: savedItem.title,
               subtitle: savedItem.subtitle,
@@ -139,6 +139,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               imagePath: savedItem.imagePath,
               startDate: savedItem.startDate,
               endDate: savedItem.endDate,
+              autoCreateDays: true,
             );
             await ItineraryFileManager.ensureItineraryFolder(created.title);
             if (mounted) {
@@ -153,8 +154,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               );
             }
           } else {
-            // Edit existing trip
+            // Edit existing trip and synchronize days with duration
             await ItineraryDatabase.instance.updateItinerary(savedItem);
+            await ItineraryDatabase.instance.syncDaysWithDuration(savedItem);
             await ItineraryFileManager.ensureItineraryFolder(savedItem.title);
             if (mounted) {
               setState(() {

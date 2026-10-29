@@ -58,15 +58,32 @@ class ItineraryTtCompiler {
 
     if (days.isNotEmpty) {
       for (final dayItem in days) {
+        String dayDateIso = startIso;
+        if (dayItem.date != null && dayItem.date!.trim().isNotEmpty) {
+          final raw = dayItem.date!.trim();
+          final parsed = DateTime.tryParse(raw);
+          if (parsed != null) {
+            dayDateIso = parsed.toIso8601String().split('T').first;
+          } else {
+            final parts = raw.split(RegExp(r'[-/]'));
+            if (parts.length == 3 && parts[2].length == 4) {
+              dayDateIso =
+                  '${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}';
+            }
+          }
+        }
+
         final dayEvents = events
-            .where((e) => e.dayId == dayItem.id || (e.dayId == null && e.dayNumber == dayItem.dayNumber))
-            .map((e) => _mapEvent(e, defaultDate: dayItem.date ?? startIso))
+            .where((e) =>
+                e.dayId == dayItem.id ||
+                (e.dayId == null && e.dayNumber == dayItem.dayNumber))
+            .map((e) => _mapEvent(e, defaultDate: dayDateIso))
             .toList();
 
         mappedDays.add(
           ItineraryDay(
             dayNumber: dayItem.dayNumber,
-            dateIso8601: dayItem.date ?? startIso,
+            dateIso8601: dayDateIso,
             title: dayItem.title,
             description: dayItem.description ?? '',
             primaryTimezoneIana: 'UTC',

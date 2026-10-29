@@ -163,6 +163,7 @@ class AddDayDialog extends StatefulWidget {
   final int itineraryId;
   final TripDayItem? dayToEdit;
   final int nextDayNumber;
+  final String? defaultDate;
   final VoidCallback onDaySaved;
 
   const AddDayDialog({
@@ -170,6 +171,7 @@ class AddDayDialog extends StatefulWidget {
     required this.itineraryId,
     this.dayToEdit,
     required this.nextDayNumber,
+    this.defaultDate,
     required this.onDaySaved,
   });
 
@@ -190,7 +192,7 @@ class _AddDayDialogState extends State<AddDayDialog> {
       text: widget.dayToEdit?.title ?? 'Day ${widget.nextDayNumber}',
     );
     _dateController = TextEditingController(
-      text: widget.dayToEdit?.date ?? '',
+      text: widget.dayToEdit?.date ?? widget.defaultDate ?? '',
     );
     _descriptionController = TextEditingController(
       text: widget.dayToEdit?.description ?? '',
@@ -584,7 +586,7 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
     final size = att['size'] ?? '';
     final path = att['path'] ?? '';
     final typeStr = _getFriendlyFileType(name);
-    final subtitle = size.isNotEmpty ? '$typeStr · $size' : typeStr;
+    final subtitle = size.isNotEmpty ? '$typeStr Â· $size' : typeStr;
 
     return Container(
       height: 56,
@@ -740,7 +742,7 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
       bg = const Color(0xFFECFDF5);
       border = const Color(0xFFA7F3D0);
       text = const Color(0xFF059669);
-      label = 'Lodging · ${event.subCategory}';
+      label = 'Lodging Â· ${event.subCategory}';
     } else if (event.category == 'Transportation') {
       bg = const Color(0xFFF0F9FF);
       border = const Color(0xFFBAE6FD);
@@ -748,13 +750,13 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
       if (event.subDetail != null && event.subDetail!.isNotEmpty) {
         label = '${event.subCategory} (${event.subDetail})';
       } else {
-        label = 'Transport · ${event.subCategory}';
+        label = 'Transport Â· ${event.subCategory}';
       }
     } else if (event.category == 'Info') {
       bg = const Color(0xFFEEF2FF);
       border = const Color(0xFFC7D2FE);
       text = const Color(0xFF4F46E5);
-      label = 'Info · ${event.subCategory}';
+      label = 'Info Â· ${event.subCategory}';
     } else {
       bg = const Color(0xFFF8FAFC);
       border = const Color(0xFFE2E8F0);
@@ -762,7 +764,7 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
       if (event.subCategory.isNotEmpty &&
           event.subCategory != 'Activity' &&
           event.subCategory != 'No Category') {
-        label = 'Activity · ${event.subCategory}';
+        label = 'Activity Â· ${event.subCategory}';
       } else {
         label = 'Activity';
       }
@@ -889,7 +891,7 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
                       const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF64748B)),
                       const SizedBox(width: 5),
                       Text(
-                        [depDate, depTime].where((s) => s.isNotEmpty).join(' · '),
+                        [depDate, depTime].where((s) => s.isNotEmpty).join(' Â· '),
                         style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -1300,7 +1302,7 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
                       const SizedBox(height: 2),
                       Text(
                         _currentDay.date != null && _currentDay.date!.isNotEmpty
-                            ? '${_currentDay.date} · ${_events.length} events planned for ${widget.tripTitle}'
+                            ? '${_currentDay.date} Â· ${_events.length} events planned for ${widget.tripTitle}'
                             : '${_events.length} events planned for ${widget.tripTitle}',
                         style: const TextStyle(
                             fontSize: 13, color: Color(0xFF64748B)),
@@ -3421,7 +3423,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                       final path = _photosList[idx];
                                       final file = File(path);
                                       return Tooltip(
-                                        message: 'Click to preview • Click X to remove',
+                                        message: 'Click to preview â€¢ Click X to remove',
                                         child: Stack(
                                           clipBehavior: Clip.none,
                                           children: [

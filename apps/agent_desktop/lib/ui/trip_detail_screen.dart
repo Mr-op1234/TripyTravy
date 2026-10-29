@@ -84,18 +84,53 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
       // If days are empty but initialEvents exist, synthesize day cards
 
-      if (_days.isEmpty && _events.isNotEmpty) {
-        final dayNumbers = _events.map((e) => e.dayNumber).toSet().toList()
-          ..sort();
+      if (_days.isEmpty) {
+        if (_events.isNotEmpty) {
+          final dayNumbers = _events.map((e) => e.dayNumber).toSet().toList()
+            ..sort();
 
-        for (final dn in dayNumbers) {
-          _days.add(TripDayItem(
-            id: 'day_${widget.item.id}_$dn',
-            itineraryId: widget.item.id,
-            dayNumber: dn,
-            title: 'Day $dn',
-            sortOrder: dn - 1,
-          ));
+          for (final dn in dayNumbers) {
+            _days.add(TripDayItem(
+              id: 'day_${widget.item.id}_$dn',
+              itineraryId: widget.item.id,
+              dayNumber: dn,
+              title: 'Day $dn',
+              sortOrder: dn - 1,
+            ));
+          }
+        } else if (widget.initialDays == null) {
+          final dayCount = ItineraryDatabase.parseDurationDays(
+            widget.item.duration,
+            startDate: widget.item.startDate,
+            endDate: widget.item.endDate,
+          );
+          DateTime? startDate =
+              ItineraryDatabase.parseFlexibleDate(widget.item.startDate);
+          if (startDate == null && widget.item.dateRange.isNotEmpty) {
+            final rangeMatch =
+                RegExp(r'(\d{2}-\d{2}-\d{4})\s*->\s*(\d{2}-\d{2}-\d{4})')
+                    .firstMatch(widget.item.dateRange);
+            if (rangeMatch != null) {
+              startDate =
+                  ItineraryDatabase.parseFlexibleDate(rangeMatch.group(1));
+            }
+          }
+          for (int i = 1; i <= dayCount; i++) {
+            String? dateStr;
+            if (startDate != null) {
+              final d = startDate.add(Duration(days: i - 1));
+              dateStr =
+                  '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
+            }
+            _days.add(TripDayItem(
+              id: 'day_${widget.item.id}_$i',
+              itineraryId: widget.item.id,
+              dayNumber: i,
+              title: 'Day $i',
+              date: dateStr,
+              sortOrder: i - 1,
+            ));
+          }
         }
       }
 
@@ -128,9 +163,17 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   Future<void> _loadTripData() async {
     final updatedTrip =
         await ItineraryDatabase.instance.getItineraryById(_currentTrip.id);
+    if (updatedTrip != null) _currentTrip = updatedTrip;
 
-    final days =
+    var days =
         await ItineraryDatabase.instance.getDaysForItinerary(_currentTrip.id);
+
+    // Auto-create days if itinerary has none yet
+    if (days.isEmpty) {
+      await ItineraryDatabase.instance.autoCreateDaysForItinerary(_currentTrip);
+      days =
+          await ItineraryDatabase.instance.getDaysForItinerary(_currentTrip.id);
+    }
 
     final events =
         await ItineraryDatabase.instance.getEventsForItinerary(_currentTrip.id);
@@ -150,8 +193,6 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
     if (mounted) {
       setState(() {
-        if (updatedTrip != null) _currentTrip = updatedTrip;
-
         _days = days;
 
         _dayEventCounts = counts;
@@ -166,12 +207,24 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   }
 
   void _showAddDayDialog({TripDayItem? dayToEdit}) {
+    String? defaultDate;
+    if (dayToEdit == null) {
+      DateTime? startDate =
+          ItineraryDatabase.parseFlexibleDate(_currentTrip.startDate);
+      if (startDate != null) {
+        final nextD = startDate.add(Duration(days: _days.length));
+        defaultDate =
+            '${nextD.day.toString().padLeft(2, '0')}-${nextD.month.toString().padLeft(2, '0')}-${nextD.year}';
+      }
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AddDayDialog(
         itineraryId: _currentTrip.id,
         dayToEdit: dayToEdit,
         nextDayNumber: _days.length + 1,
+        defaultDate: defaultDate,
         onDaySaved: () {
           _loadTripData();
         },
