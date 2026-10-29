@@ -1521,13 +1521,82 @@ class ItineraryDatabase {
     return count;
   }
 
+  Future<TripDocumentItem?> getDocument(String docId) async {
+    final db = await database;
+    final results = await db.query(
+      'trip_documents',
+      where: 'id = ?',
+      whereArgs: [docId],
+    );
+    if (results.isEmpty) return null;
+    var doc = TripDocumentItem.fromMap(results.first);
+    if (doc.attachments.isEmpty) {
+      try {
+        final childRows = await db.query(
+          'document_attachments',
+          where: 'document_id = ?',
+          whereArgs: [doc.id],
+          orderBy: 'sort_order ASC',
+        );
+        if (childRows.isNotEmpty) {
+          final atts = childRows.map((r) => {
+            'name': r['file_name'] as String? ?? '',
+            'size': r['file_size'] as String? ?? '',
+            'path': r['file_path'] as String? ?? '',
+          }).toList();
+          doc = doc.copyWith(attachmentsJson: jsonEncode(atts));
+        }
+      } catch (_) {}
+    }
+    return doc;
+  }
+
   Future<int> deleteDocument(String docId) async {
     final db = await database;
     return await db.delete('trip_documents', where: 'id = ?', whereArgs: [docId]);
   }
 
-  // --- Storage Helpers ---
-  static Future<String> saveBannerToAppStorage(String sourcePath) async {
+  // --- Storage & Renaming Helpers ---
+  static String sanitizeFileName(String name) {
+    var cleaned = name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
+    cleaned = cleaned.replaceAll(RegExp(r'^[.\s]+|[.\s]+$'), '');
+    return cleaned.isEmpty ? 'file' : cleaned;
+  }
+
+  static Future<String> _getUniqueFilePath(
+    Directory dir,
+    String desiredName, {
+    String? sourcePath,
+  }) async {
+    final cleanName = sanitizeFileName(desiredName);
+    final ext = p.extension(cleanName);
+    final base = p.basenameWithoutExtension(cleanName);
+
+    var targetPath = p.join(dir.path, cleanName);
+    if (!await File(targetPath).exists()) {
+      return targetPath;
+    }
+
+    if (sourcePath != null) {
+      try {
+        if (p.canonicalize(sourcePath) == p.canonicalize(targetPath)) {
+          return targetPath;
+        }
+      } catch (_) {}
+    }
+
+    int counter = 1;
+    while (await File(targetPath).exists()) {
+      final candidate = p.join(dir.path, '$base ($counter)$ext');
+      if (!await File(candidate).exists()) {
+        return candidate;
+      }
+      counter++;
+    }
+    return targetPath;
+  }
+
+  static Future<String> saveBannerToAppStorage(String sourcePath, {String? customFileName}) async {
     try {
       if (sourcePath.startsWith('assets/')) return sourcePath;
       final sourceFile = File(sourcePath);
@@ -1538,17 +1607,20 @@ class ItineraryDatabase {
       if (!await bannerDir.exists()) {
         await bannerDir.create(recursive: true);
       }
-      final ext = p.extension(sourcePath);
-      final fileName = 'banner_${DateTime.now().millisecondsSinceEpoch}$ext';
-      final destPath = p.join(bannerDir.path, fileName);
-      await sourceFile.copy(destPath);
+      final name = (customFileName != null && customFileName.trim().isNotEmpty)
+          ? customFileName.trim()
+          : p.basename(sourcePath);
+      final destPath = await _getUniqueFilePath(bannerDir, name, sourcePath: sourcePath);
+      if (p.canonicalize(sourcePath) != p.canonicalize(destPath)) {
+        await sourceFile.copy(destPath);
+      }
       return destPath;
     } catch (_) {
       return sourcePath;
     }
   }
 
-  static Future<String> saveEventPhotoToAppStorage(String sourcePath) async {
+  static Future<String> saveEventPhotoToAppStorage(String sourcePath, {String? customFileName}) async {
     try {
       if (sourcePath.startsWith('assets/')) return sourcePath;
       final sourceFile = File(sourcePath);
@@ -1559,17 +1631,20 @@ class ItineraryDatabase {
       if (!await photosDir.exists()) {
         await photosDir.create(recursive: true);
       }
-      final ext = p.extension(sourcePath);
-      final fileName = 'photo_${DateTime.now().millisecondsSinceEpoch}_${(sourcePath.hashCode % 1000).abs()}$ext';
-      final destPath = p.join(photosDir.path, fileName);
-      await sourceFile.copy(destPath);
+      final name = (customFileName != null && customFileName.trim().isNotEmpty)
+          ? customFileName.trim()
+          : p.basename(sourcePath);
+      final destPath = await _getUniqueFilePath(photosDir, name, sourcePath: sourcePath);
+      if (p.canonicalize(sourcePath) != p.canonicalize(destPath)) {
+        await sourceFile.copy(destPath);
+      }
       return destPath;
     } catch (_) {
       return sourcePath;
     }
   }
 
-  static Future<String> saveDocumentToAppStorage(String sourcePath) async {
+  static Future<String> saveDocumentToAppStorage(String sourcePath, {String? customFileName}) async {
     try {
       final sourceFile = File(sourcePath);
       if (!await sourceFile.exists()) return sourcePath;
@@ -1579,13 +1654,106 @@ class ItineraryDatabase {
       if (!await docsDir.exists()) {
         await docsDir.create(recursive: true);
       }
-      final ext = p.extension(sourcePath);
-      final fileName = 'doc_${DateTime.now().millisecondsSinceEpoch}$ext';
-      final destPath = p.join(docsDir.path, fileName);
-      await sourceFile.copy(destPath);
+      final name = (customFileName != null && customFileName.trim().isNotEmpty)
+          ? customFileName.trim()
+          : p.basename(sourcePath);
+      final destPath = await _getUniqueFilePath(docsDir, name, sourcePath: sourcePath);
+      if (p.canonicalize(sourcePath) != p.canonicalize(destPath)) {
+        await sourceFile.copy(destPath);
+      }
       return destPath;
     } catch (_) {
       return sourcePath;
+    }
+  }
+
+  static Future<String> renameDocumentFile(String oldPath, String newName) async {
+    try {
+      var sanitized = sanitizeFileName(newName);
+      final oldExt = p.extension(oldPath);
+      if (p.extension(sanitized).isEmpty && oldExt.isNotEmpty) {
+        sanitized = '$sanitized$oldExt';
+      }
+      final file = File(oldPath);
+      if (!await file.exists()) {
+        final dir = p.dirname(oldPath);
+        return p.join(dir, sanitized);
+      }
+      final parentDir = file.parent;
+      final newPath = await _getUniqueFilePath(parentDir, sanitized, sourcePath: oldPath);
+      if (p.canonicalize(oldPath) == p.canonicalize(newPath)) {
+        return oldPath;
+      }
+      await file.rename(newPath);
+      return newPath;
+    } catch (e) {
+      debugPrint('Error renaming document file: $e');
+      return oldPath;
+    }
+  }
+
+  Future<TripDocumentItem?> renameTripDocument(
+    String docId,
+    String newName, {
+    String? targetAttachmentName,
+  }) async {
+    final doc = await getDocument(docId);
+    if (doc == null) return null;
+
+    var sanitized = sanitizeFileName(newName);
+    final attachments = doc.attachments;
+    String newFilePath = doc.filePath;
+    String newFileName = doc.fileName;
+
+    if (attachments.isNotEmpty) {
+      final updatedAttachments = <Map<String, String>>[];
+      for (final att in attachments) {
+        final currentName = att['name'] ?? '';
+        final currentPath = att['path'] ?? '';
+        if (targetAttachmentName == null || targetAttachmentName == currentName || attachments.length == 1) {
+          final oldExt = p.extension(currentName.isNotEmpty ? currentName : currentPath);
+          var entryNewName = sanitized;
+          if (p.extension(entryNewName).isEmpty && oldExt.isNotEmpty) {
+            entryNewName = '$entryNewName$oldExt';
+          }
+          String entryNewPath = currentPath;
+          if (currentPath.isNotEmpty) {
+            entryNewPath = await renameDocumentFile(currentPath, entryNewName);
+          }
+          updatedAttachments.add({
+            'name': entryNewName,
+            'size': att['size'] ?? '',
+            'path': entryNewPath,
+          });
+          if (currentPath == doc.filePath || doc.fileName == currentName) {
+            newFilePath = entryNewPath;
+            newFileName = entryNewName;
+          }
+        } else {
+          updatedAttachments.add(att);
+        }
+      }
+      final updatedDoc = doc.copyWith(
+        fileName: newFileName,
+        filePath: newFilePath,
+        attachmentsJson: jsonEncode(updatedAttachments),
+      );
+      await updateDocument(updatedDoc);
+      return updatedDoc;
+    } else {
+      final oldExt = p.extension(doc.fileName.isNotEmpty ? doc.fileName : doc.filePath);
+      if (p.extension(sanitized).isEmpty && oldExt.isNotEmpty) {
+        sanitized = '$sanitized$oldExt';
+      }
+      if (doc.filePath.isNotEmpty) {
+        newFilePath = await renameDocumentFile(doc.filePath, sanitized);
+      }
+      final updatedDoc = doc.copyWith(
+        fileName: sanitized,
+        filePath: newFilePath,
+      );
+      await updateDocument(updatedDoc);
+      return updatedDoc;
     }
   }
 

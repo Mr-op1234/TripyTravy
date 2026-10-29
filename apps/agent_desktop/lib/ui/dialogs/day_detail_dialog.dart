@@ -10,6 +10,7 @@ import '../../data/itinerary_database.dart';
 import '../../data/google_maps_helper.dart';
 import '../widgets/rich_description_editor.dart';
 import 'image_upload_dialog.dart';
+import 'documents_dialog.dart';
 
 /// Dedicated in-app modal image viewer for full resolution display with zoom & pan.
 class DedicatedImageViewerDialog extends StatelessWidget {
@@ -1565,6 +1566,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
   final List<TextEditingController> _transStopControllers = [];
 
   final List<PlatformFile> _attachedFiles = [];
+  final Map<int, String> _customPickedNames = {};
   List<Map<String, String>> _existingAttachments = [];
   final List<String> _photosList = [];
 
@@ -1684,6 +1686,44 @@ class _AddEventDialogState extends State<AddEventDialog> {
       }
     } catch (e) {
       setState(() => _errorMessage = 'Could not select files: $e');
+    }
+  }
+
+  Future<void> _renameExistingAttachment(int index) async {
+    final current = _existingAttachments[index];
+    final currentName = current['name'] ?? 'File';
+    final newName = await showRenameFileDialog(
+      context: context,
+      currentName: currentName,
+    );
+    if (newName != null && newName.trim().isNotEmpty && newName.trim() != currentName) {
+      final sanitizedName = newName.trim();
+      final path = current['path'];
+      String updatedPath = path ?? '';
+      if (path != null && path.isNotEmpty) {
+        updatedPath = await ItineraryDatabase.renameDocumentFile(path, sanitizedName);
+      }
+      setState(() {
+        _existingAttachments[index] = {
+          ...current,
+          'name': sanitizedName,
+          'path': updatedPath,
+        };
+      });
+    }
+  }
+
+  Future<void> _renamePickedFile(int index) async {
+    final f = _attachedFiles[index];
+    final currentName = _customPickedNames[index] ?? f.name;
+    final newName = await showRenameFileDialog(
+      context: context,
+      currentName: currentName,
+    );
+    if (newName != null && newName.trim().isNotEmpty && newName.trim() != currentName) {
+      setState(() {
+        _customPickedNames[index] = newName.trim();
+      });
     }
   }
 
@@ -1886,18 +1926,36 @@ class _AddEventDialogState extends State<AddEventDialog> {
     }
 
     final combinedAttachments = <Map<String, String>>[..._existingAttachments];
-    for (final f in _attachedFiles) {
+    for (var i = 0; i < _attachedFiles.length; i++) {
+      final f = _attachedFiles[i];
       if (f.path != null) {
+        final customName = _customPickedNames[i] ?? f.name;
+        final savedPath = await ItineraryDatabase.saveDocumentToAppStorage(
+          f.path!,
+          customFileName: customName,
+        );
         final sizeBytes = _getFileSizeBytes(f);
         final sizeMb = (sizeBytes / (1024 * 1024)).toStringAsFixed(1);
         final sizeStr = sizeBytes > 1024 * 1024
             ? '$sizeMb MB'
             : '${(sizeBytes / 1024).toStringAsFixed(0)} KB';
         combinedAttachments.add({
-          'name': f.name,
+          'name': customName,
           'size': sizeStr,
-          'path': f.path!,
+          'path': savedPath,
         });
+      }
+    }
+
+    final savedPhotos = <String>[];
+    for (final photoPath in _photosList) {
+      if (!photoPath.startsWith('assets/') &&
+          !photoPath.startsWith('http://') &&
+          !photoPath.startsWith('https://')) {
+        final saved = await ItineraryDatabase.saveEventPhotoToAppStorage(photoPath);
+        savedPhotos.add(saved);
+      } else {
+        savedPhotos.add(photoPath);
       }
     }
 
@@ -1947,10 +2005,10 @@ class _AddEventDialogState extends State<AddEventDialog> {
       duration: widget.eventToEdit?.duration ?? '',
       location: primaryLocation?.locationName ?? widget.eventToEdit?.location ?? '',
       description: _descriptionController.text.trim(),
-      coverImage: _photosList.isNotEmpty
-          ? _photosList.first
+      coverImage: savedPhotos.isNotEmpty
+          ? savedPhotos.first
           : (widget.eventToEdit?.coverImage ?? ''),
-      photos: _photosList,
+      photos: savedPhotos,
       notes: widget.eventToEdit?.notes ?? [],
       sortOrder: widget.eventToEdit?.sortOrder ?? 0,
       locationName: primaryLocation?.locationName,
@@ -3539,11 +3597,15 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                         padding:
                                             const EdgeInsets.only(bottom: 6),
                                         child: _buildAttachmentRow(
-                                            att['name'] ?? 'File',
-                                            att['size'] ?? '', () {
-                                          setState(() => _existingAttachments
-                                              .removeAt(idx));
-                                        }),
+                                          att['name'] ?? 'File',
+                                          att['size'] ?? '',
+                                          () {
+                                            setState(() => _existingAttachments
+                                                .removeAt(idx));
+                                          },
+                                          onRename: () =>
+                                              _renameExistingAttachment(idx),
+                                        ),
                                       );
                                     }),
                                     ..._attachedFiles
@@ -3552,6 +3614,8 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                         .map((entry) {
                                       final idx = entry.key;
                                       final f = entry.value;
+                                      final displayName =
+                                          _customPickedNames[idx] ?? f.name;
                                       final sizeBytes = _getFileSizeBytes(f);
                                       final sizeStr = sizeBytes > 1024 * 1024
                                           ? '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB'
@@ -3560,10 +3624,17 @@ class _AddEventDialogState extends State<AddEventDialog> {
                                         padding:
                                             const EdgeInsets.only(bottom: 6),
                                         child: _buildAttachmentRow(
-                                            f.name, sizeStr, () {
-                                          setState(() =>
-                                              _attachedFiles.removeAt(idx));
-                                        }),
+                                          displayName,
+                                          sizeStr,
+                                          () {
+                                            setState(() {
+                                              _attachedFiles.removeAt(idx);
+                                              _customPickedNames.remove(idx);
+                                            });
+                                          },
+                                          onRename: () =>
+                                              _renamePickedFile(idx),
+                                        ),
                                       );
                                     }),
                                   ],
@@ -3617,7 +3688,8 @@ class _AddEventDialogState extends State<AddEventDialog> {
     );
   }
 
-  Widget _buildAttachmentRow(String name, String size, VoidCallback onRemove) {
+  Widget _buildAttachmentRow(String name, String size, VoidCallback onRemove,
+      {VoidCallback? onRename}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -3637,9 +3709,18 @@ class _AddEventDialogState extends State<AddEventDialog> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (onRename != null)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined,
+                  size: 16, color: Color(0xFF64748B)),
+              onPressed: onRename,
+              tooltip: 'Rename File',
+              splashRadius: 14,
+            ),
           IconButton(
             icon: const Icon(Icons.close, size: 16, color: Color(0xFF94A3B8)),
             onPressed: onRemove,
+            tooltip: 'Remove',
             splashRadius: 14,
           ),
         ],

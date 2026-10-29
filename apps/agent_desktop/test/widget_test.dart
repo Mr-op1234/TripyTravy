@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:agent_desktop/data/itinerary_database.dart';
 import 'package:agent_desktop/ui/dashboard_screen.dart';
 import 'package:agent_desktop/ui/trip_detail_screen.dart';
@@ -14,7 +17,16 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   setUpAll(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
     ItineraryDatabase.initializeFfi();
+    final tempDir = Directory.systemTemp.createTempSync('path_provider_mock');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      (MethodCall methodCall) async {
+        return tempDir.path;
+      },
+    );
   });
 
   group('ItineraryDatabase SQLite Tests', () {
@@ -1119,6 +1131,157 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(find.byType(AddEventDialog), findsNothing);
+    });
+
+    test('Original file names preservation and unique naming on upload', () async {
+      final tempDir = Directory.systemTemp.createTempSync('tt_test_files');
+      try {
+        final pdfFile = File(p.join(tempDir.path, 'Swiss_Rail_Pass.pdf'))..writeAsStringSync('pdf content');
+        final imgFile = File(p.join(tempDir.path, 'Matterhorn_Sunrise.jpg'))..writeAsStringSync('img content');
+        final bannerFile = File(p.join(tempDir.path, 'Europe_Summer_Banner.png'))..writeAsStringSync('banner content');
+
+        // Test 1: Uploading documents preserves exact original file name
+        final savedDocPath = await ItineraryDatabase.saveDocumentToAppStorage(pdfFile.path);
+        expect(p.basename(savedDocPath), equals('Swiss_Rail_Pass.pdf'));
+        expect(File(savedDocPath).existsSync(), isTrue);
+
+        // Test 2: Uploading event photo preserves original file name
+        final savedPhotoPath = await ItineraryDatabase.saveEventPhotoToAppStorage(imgFile.path);
+        expect(p.basename(savedPhotoPath), equals('Matterhorn_Sunrise.jpg'));
+        expect(File(savedPhotoPath).existsSync(), isTrue);
+
+        // Test 3: Uploading banner preserves original file name
+        final savedBannerPath = await ItineraryDatabase.saveBannerToAppStorage(bannerFile.path);
+        expect(p.basename(savedBannerPath), equals('Europe_Summer_Banner.png'));
+        expect(File(savedBannerPath).existsSync(), isTrue);
+
+        // Test 4: Collision handling adds (1), (2)
+        final secondPdf = File(p.join(tempDir.path, 'temp_copy.pdf'))..writeAsStringSync('second pdf');
+        final collDocPath = await ItineraryDatabase.saveDocumentToAppStorage(secondPdf.path, customFileName: 'Swiss_Rail_Pass.pdf');
+        expect(p.basename(collDocPath), equals('Swiss_Rail_Pass (1).pdf'));
+        expect(File(collDocPath).existsSync(), isTrue);
+
+        // Test 5: Renaming file on disk
+        final renamedPath = await ItineraryDatabase.renameDocumentFile(savedDocPath, 'Jungfrau_VIP_Pass.pdf');
+        expect(p.basename(renamedPath), equals('Jungfrau_VIP_Pass.pdf'));
+        expect(File(renamedPath).existsSync(), isTrue);
+        expect(File(savedDocPath).existsSync(), isFalse);
+      } finally {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    test('ItineraryDatabase.renameTripDocument updates database record and physical file', () async {
+      final tempDir = Directory.systemTemp.createTempSync('tt_db_rename_test');
+      try {
+        final trip = await ItineraryDatabase.instance.insertItinerary(
+          title: 'Switzerland Trip',
+          subtitle: 'Alps',
+          duration: '7 Days',
+          dateRange: 'Oct 1 - Oct 7',
+          imagePath: 'assets/images/banner.jpg',
+        );
+        final tripId = trip.id;
+
+        final sourceFile = File(p.join(tempDir.path, 'Flight_Zurich.pdf'))..writeAsStringSync('test pdf ticket');
+        final savedPath = await ItineraryDatabase.saveDocumentToAppStorage(sourceFile.path);
+
+        final docItem = TripDocumentItem(
+          id: 'doc_rename_test_1',
+          itineraryId: tripId,
+          docType: 'info',
+          title: 'Flight Information',
+          fileName: 'Flight_Zurich.pdf',
+          fileSize: '12 KB',
+          filePath: savedPath,
+          attachmentsJson: jsonEncode([
+            {
+              'name': 'Flight_Zurich.pdf',
+              'size': '12 KB',
+              'path': savedPath,
+            }
+          ]),
+        );
+
+        await ItineraryDatabase.instance.insertDocument(docItem);
+
+        // Rename the document attachment
+        final updated = await ItineraryDatabase.instance.renameTripDocument(
+          'doc_rename_test_1',
+          'Swiss_Airways_Zurich.pdf',
+          targetAttachmentName: 'Flight_Zurich.pdf',
+        );
+
+        expect(updated, isNotNull);
+        expect(updated!.fileName, equals('Swiss_Airways_Zurich.pdf'));
+        expect(updated.attachments.first['name'], equals('Swiss_Airways_Zurich.pdf'));
+        expect(p.basename(updated.attachments.first['path']!), equals('Swiss_Airways_Zurich.pdf'));
+        expect(File(updated.attachments.first['path']!).existsSync(), isTrue);
+
+        // Fetch from DB to ensure persistence
+        final reloaded = await ItineraryDatabase.instance.getDocument('doc_rename_test_1');
+        expect(reloaded, isNotNull);
+        expect(reloaded!.fileName, equals('Swiss_Airways_Zurich.pdf'));
+        expect(reloaded.attachments.first['name'], equals('Swiss_Airways_Zurich.pdf'));
+      } finally {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    testWidgets('UI renders Rename File action buttons in DocumentsManagerDialog and AddEventDialog',
+        (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final docWithAttachment = TripDocumentItem(
+        id: 'doc_pill_test',
+        itineraryId: 1,
+        docType: 'info',
+        title: 'Swiss Pass',
+        fileName: 'Swiss_Pass.pdf',
+        fileSize: '2.1 MB',
+        filePath: 'test/Swiss_Pass.pdf',
+        attachmentsJson: jsonEncode([
+          {
+            'name': 'Swiss_Pass.pdf',
+            'size': '2.1 MB',
+            'path': 'test/Swiss_Pass.pdf',
+          }
+        ]),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DocumentsManagerDialog(
+              itineraryId: 1,
+              tripTitle: 'Switzerland & Italy',
+              initialDocuments: [docWithAttachment],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify the attachment pill has a 'Rename File' tooltip icon button
+      final renameButtonFinder = find.byTooltip('Rename File');
+      expect(renameButtonFinder, findsWidgets);
+
+      // Verify tapping Rename button opens the rename dialog
+      await tester.tap(renameButtonFinder.first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rename File'), findsWidgets);
+      expect(find.text('Enter a new name for this file:'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Rename'), findsOneWidget);
+
+      // Cancel dialog
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
     });
   });
 }

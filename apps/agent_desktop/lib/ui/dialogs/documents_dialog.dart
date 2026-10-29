@@ -3,9 +3,94 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
 import '../../data/itinerary_database.dart';
 import '../../data/google_maps_helper.dart';
 import '../widgets/rich_description_editor.dart';
+
+/// Reusable modal dialog for renaming files across Agent Desktop
+Future<String?> showRenameFileDialog({
+  required BuildContext context,
+  required String currentName,
+  String title = 'Rename File',
+}) async {
+  final controller = TextEditingController(text: currentName);
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.edit_outlined, color: Color(0xFF2563EB), size: 20),
+          ),
+          const SizedBox(width: 12),
+          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Enter a new name for this file:',
+            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'e.g. Flight_Ticket.pdf',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+            onSubmitted: (val) {
+              if (val.trim().isNotEmpty) {
+                var res = val.trim();
+                final ext = p.extension(currentName);
+                if (p.extension(res).isEmpty && ext.isNotEmpty) {
+                  res = '$res$ext';
+                }
+                Navigator.pop(ctx, res);
+              }
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final val = controller.text.trim();
+            if (val.isNotEmpty) {
+              var res = val;
+              final ext = p.extension(currentName);
+              if (p.extension(res).isEmpty && ext.isNotEmpty) {
+                res = '$res$ext';
+              }
+              Navigator.pop(ctx, res);
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF2563EB),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          child: const Text('Rename'),
+        ),
+      ],
+    ),
+  );
+}
 
 class DocumentsManagerDialog extends StatefulWidget {
   final int itineraryId;
@@ -131,7 +216,27 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
     );
   }
 
-  Widget _buildAttachmentPill(Map<String, String> att) {
+  Future<void> _renameDocumentAttachment(TripDocumentItem doc, String currentName) async {
+    final newName = await showRenameFileDialog(
+      context: context,
+      currentName: currentName,
+    );
+    if (newName != null && newName.trim().isNotEmpty && newName.trim() != currentName) {
+      await ItineraryDatabase.instance.renameTripDocument(
+        doc.id,
+        newName.trim(),
+        targetAttachmentName: currentName,
+      );
+      await _loadDocuments();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Renamed file to "$newName"')),
+        );
+      }
+    }
+  }
+
+  Widget _buildAttachmentPill(Map<String, String> att, TripDocumentItem doc) {
     final name = att['name'] ?? 'Document';
     final size = att['size'] ?? '';
     final path = att['path'] ?? '';
@@ -193,6 +298,16 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            tooltip: 'Rename File',
+            onPressed: () => _renameDocumentAttachment(doc, name),
+            icon: const Icon(
+              Icons.edit_outlined,
+              size: 19,
+              color: Color(0xFF64748B),
+            ),
+            splashRadius: 18,
           ),
           IconButton(
             tooltip: 'Preview / Open Document',
@@ -329,7 +444,7 @@ class _DocumentsManagerDialogState extends State<DocumentsManagerDialog> {
               children: attachmentsList.map((att) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _buildAttachmentPill(att),
+                  child: _buildAttachmentPill(att, doc),
                 );
               }).toList(),
             ),
@@ -504,6 +619,7 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
   final _mapsUrlController = TextEditingController();
 
   final List<PlatformFile> _attachedFiles = [];
+  final Map<int, String> _customPickedNames = {};
   List<Map<String, String>> _existingAttachments = [];
   GoogleMapsLocation? _fetchedLocation;
   bool _isFetchingLocation = false;
@@ -583,7 +699,46 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
   void _removeFile(int index) {
     setState(() {
       _attachedFiles.removeAt(index);
+      _customPickedNames.remove(index);
     });
+  }
+
+  Future<void> _renameExistingAttachment(int index) async {
+    final current = _existingAttachments[index];
+    final currentName = current['name'] ?? 'File';
+    final newName = await showRenameFileDialog(
+      context: context,
+      currentName: currentName,
+    );
+    if (newName != null && newName.trim().isNotEmpty && newName.trim() != currentName) {
+      final sanitizedName = newName.trim();
+      final path = current['path'];
+      String updatedPath = path ?? '';
+      if (path != null && path.isNotEmpty) {
+        updatedPath = await ItineraryDatabase.renameDocumentFile(path, sanitizedName);
+      }
+      setState(() {
+        _existingAttachments[index] = {
+          ...current,
+          'name': sanitizedName,
+          'path': updatedPath,
+        };
+      });
+    }
+  }
+
+  Future<void> _renamePickedFile(int index) async {
+    final f = _attachedFiles[index];
+    final currentName = _customPickedNames[index] ?? f.name;
+    final newName = await showRenameFileDialog(
+      context: context,
+      currentName: currentName,
+    );
+    if (newName != null && newName.trim().isNotEmpty && newName.trim() != currentName) {
+      setState(() {
+        _customPickedNames[index] = newName.trim();
+      });
+    }
   }
 
   IconData _getFileIcon(String fileName) {
@@ -687,16 +842,21 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
 
     try {
       final List<Map<String, String>> savedAttachments = List.from(_existingAttachments);
-      for (final f in _attachedFiles) {
+      for (var i = 0; i < _attachedFiles.length; i++) {
+        final f = _attachedFiles[i];
         if (f.path != null) {
-          final savedPath = await ItineraryDatabase.saveDocumentToAppStorage(f.path!);
+          final customName = _customPickedNames[i] ?? f.name;
+          final savedPath = await ItineraryDatabase.saveDocumentToAppStorage(
+            f.path!,
+            customFileName: customName,
+          );
           final sizeBytes = _getFileSizeBytes(f);
           final sizeKb = sizeBytes / 1024;
           final sizeStr = sizeKb > 1024
               ? '${(sizeKb / 1024).toStringAsFixed(1)} MB'
               : '${sizeKb.toStringAsFixed(1)} KB';
           savedAttachments.add({
-            'name': f.name,
+            'name': customName,
             'size': sizeStr,
             'path': savedPath,
           });
@@ -1047,6 +1207,15 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                                       ),
                                     ),
                                     IconButton(
+                                      icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF64748B)),
+                                      onPressed: () => _renameExistingAttachment(idx),
+                                      splashRadius: 14,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                      tooltip: 'Rename File',
+                                    ),
+                                    const SizedBox(width: 4),
+                                    IconButton(
                                       icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
                                       onPressed: () {
                                         setState(() {
@@ -1066,6 +1235,7 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                             ..._attachedFiles.asMap().entries.map((entry) {
                               final idx = entry.key;
                               final f = entry.value;
+                              final displayName = _customPickedNames[idx] ?? f.name;
                               final sizeKb = _getFileSizeBytes(f) / 1024;
                               final sizeStr = sizeKb > 1024 ? '${(sizeKb / 1024).toStringAsFixed(1)} MB' : '${sizeKb.toStringAsFixed(1)} KB';
 
@@ -1079,16 +1249,25 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(_getFileIcon(f.name), size: 18, color: const Color(0xFF2563EB)),
+                                    Icon(_getFileIcon(displayName), size: 18, color: const Color(0xFF2563EB)),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        '${f.name} ($sizeStr)',
+                                        '$displayName ($sizeStr)',
                                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF64748B)),
+                                      onPressed: () => _renamePickedFile(idx),
+                                      splashRadius: 14,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                      tooltip: 'Rename File',
+                                    ),
+                                    const SizedBox(width: 4),
                                     IconButton(
                                       icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
                                       onPressed: () => _removeFile(idx),

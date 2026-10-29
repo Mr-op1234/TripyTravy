@@ -124,19 +124,74 @@ class ItineraryTtCompiler {
     }
 
     // Map documents into domain documents
-    final mappedDocs = documents.map((doc) {
-      return TripDocumentRecord(
-        id: doc.id,
-        title: doc.title,
-        docType: doc.docType,
-        description: doc.description,
-        fileName: doc.fileName,
-        fileSize: doc.fileSize,
-        filePath: doc.filePath,
-        locationName: doc.locationName,
-        mapUrl: doc.mapUrl,
-      );
-    }).toList();
+    final mappedDocs = <TripDocumentRecord>[];
+    for (final doc in documents) {
+      if (doc.attachments.isNotEmpty) {
+        for (var i = 0; i < doc.attachments.length; i++) {
+          final att = doc.attachments[i];
+          final name = att['name'] ?? doc.fileName;
+          final size = att['size'] ?? doc.fileSize;
+          final path = att['path'] ?? doc.filePath;
+          final ext = name.contains('.') ? name.split('.').last.toUpperCase() : 'DOC';
+          final docType = ext == 'PDF' ? 'PDF Document' : '$ext Document';
+
+          String? base64Data;
+          if (path.isNotEmpty) {
+            try {
+              final file = File(path);
+              if (file.existsSync()) {
+                final bytes = file.readAsBytesSync();
+                if (bytes.length <= 10 * 1024 * 1024) {
+                  base64Data = base64Encode(bytes);
+                }
+              }
+            } catch (_) {}
+          }
+
+          mappedDocs.add(
+            TripDocumentRecord(
+              id: '${doc.id}_$i',
+              title: name,
+              docType: docType,
+              description: doc.description,
+              fileName: name,
+              fileSize: size,
+              filePath: path,
+              locationName: doc.locationName,
+              mapUrl: doc.mapUrl,
+              base64Data: base64Data,
+            ),
+          );
+        }
+      } else {
+        String? base64Data;
+        if (doc.filePath.isNotEmpty) {
+          try {
+            final file = File(doc.filePath);
+            if (file.existsSync()) {
+              final bytes = file.readAsBytesSync();
+              if (bytes.length <= 10 * 1024 * 1024) {
+                base64Data = base64Encode(bytes);
+              }
+            }
+          } catch (_) {}
+        }
+        mappedDocs.add(
+          TripDocumentRecord(
+            id: doc.id,
+            title: doc.title,
+            docType: doc.docType,
+            description: doc.description,
+            fileName: doc.fileName,
+            fileSize: doc.fileSize,
+            filePath: doc.filePath,
+            locationName: doc.locationName,
+            mapUrl: doc.mapUrl,
+            base64Data: base64Data,
+          ),
+        );
+      }
+    }
 
     // Embed documents into an additional Note event or summary if present
     if (documents.isNotEmpty && mappedDays.isNotEmpty) {
