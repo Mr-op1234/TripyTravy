@@ -902,7 +902,10 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                         Expanded(
                           child: TextField(
                             controller: _titleController,
-                            style: const TextStyle(fontSize: 14.5, color: Color(0xFF1E293B)),
+                            style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E293B)),
                             decoration: InputDecoration(
                               hintText: 'e.g. Flight booking confirmation',
                               hintStyle: const TextStyle(fontSize: 14.5, color: Color(0xFF94A3B8)),

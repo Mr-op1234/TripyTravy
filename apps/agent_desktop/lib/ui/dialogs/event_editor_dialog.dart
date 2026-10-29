@@ -253,6 +253,11 @@ class _EventEditorDialogState extends State<EventEditorDialog> {
               const SizedBox(height: 6),
               TextField(
                 controller: _titleController,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
                 decoration: InputDecoration(
                   hintText: 'e.g., Departure from CCU or Mount Pilatus Summit',
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
