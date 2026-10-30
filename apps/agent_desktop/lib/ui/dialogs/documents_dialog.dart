@@ -817,9 +817,36 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
   }
 
   bool _isSaving = false;
+  bool _canPop = false;
+  bool _isExplicitCancel = false;
+
+  void _onCancel() {
+    _isExplicitCancel = true;
+    _canPop = true;
+    Navigator.pop(context);
+  }
+
+  Future<void> _autoSaveAndPop() async {
+    if (_isSaving) return;
+    final hasTitle = _titleController.text.trim().isNotEmpty;
+    final hasDesc = _descriptionController.text.trim().isNotEmpty;
+    final hasAttachments = _attachedFiles.isNotEmpty || _existingAttachments.isNotEmpty;
+    final hasLocation = _fetchedLocation != null;
+    final hasContent = hasTitle || hasDesc || hasAttachments || hasLocation || widget.itemToEdit != null;
+
+    if (!hasContent) {
+      if (mounted) {
+        setState(() => _canPop = true);
+        Navigator.pop(context);
+      }
+      return;
+    }
+
+    await _save(isAutoSave: true);
+  }
 
   // --- Save ---
-  Future<void> _save() async {
+  Future<void> _save({bool isAutoSave = false}) async {
     if (_isSaving) return;
 
     var title = _titleController.text.trim();
@@ -890,7 +917,10 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
         await ItineraryDatabase.instance.insertDocument(docItem);
       }
       widget.onDocumentSaved();
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        setState(() => _canPop = true);
+        Navigator.pop(context);
+      }
     } catch (e, stack) {
       debugPrint('Error saving information: $e\n$stack');
       if (mounted) {
@@ -993,12 +1023,25 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
     final dialogWidth = (screenSize.width * 0.88).clamp(680.0, 1050.0);
     final dialogHeight = (screenSize.height * 0.88).clamp(600.0, 880.0);
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Container(
+    return PopScope(
+      canPop: _canPop,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (_isExplicitCancel) {
+          if (mounted) {
+            setState(() => _canPop = true);
+            Navigator.pop(context);
+          }
+          return;
+        }
+        await _autoSaveAndPop();
+      },
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Container(
         width: dialogWidth,
         height: dialogHeight,
         padding: const EdgeInsets.all(26),
@@ -1036,7 +1079,7 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: _onCancel,
                   icon: const Icon(Icons.close, size: 20, color: Color(0xFF64748B)),
                 ),
               ],
@@ -1370,12 +1413,12 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
                 else
                   const Spacer(),
                 TextButton(
-                  onPressed: _isSaving ? null : () => Navigator.pop(context),
+                  onPressed: _isSaving ? null : _onCancel,
                   child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: _isSaving ? null : _save,
+                  onPressed: _isSaving ? null : () => _save(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
@@ -1396,7 +1439,8 @@ class _AddInformationDialogState extends State<AddInformationDialog> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

@@ -423,5 +423,47 @@ Trip Schedule:
       expect(exts.contains('txt'), isFalse);
       expect(exts.contains('zip'), isFalse);
     });
+    test('RichTextEditingController.serialize formats multi-line bold, italic, and underline per line', () {
+      final controller = RichTextEditingController();
+      controller.text = 'TIME:\n1:30 PM - 2:00 PM';
+      controller.toggleBold(const TextSelection(baseOffset: 0, extentOffset: 23));
+      expect(controller.serialize(), equals('**TIME:**\n**1:30 PM - 2:00 PM**'));
+
+      controller.toggleItalic(const TextSelection(baseOffset: 0, extentOffset: 23));
+      expect(controller.serialize(), equals('***TIME:***\n***1:30 PM - 2:00 PM***'));
+
+      final uController = RichTextEditingController();
+      uController.text = 'Header 1\nHeader 2';
+      uController.toggleUnderline(const TextSelection(baseOffset: 0, extentOffset: 17));
+      expect(uController.serialize(), equals('<u>Header 1</u>\n<u>Header 2</u>'));
+    });
+
+    test('sanitizeDescription normalizes multi-line bold, italic, and underline across newlines', () {
+      const inputBold = '**TIME:\n1:30 PM - 2:00 PM**';
+      expect(sanitizeDescription(inputBold), equals('**TIME:**\n**1:30 PM - 2:00 PM**'));
+
+      const inputItalic = '*Line 1\nLine 2*';
+      expect(sanitizeDescription(inputItalic), equals('*Line 1*\n*Line 2*'));
+
+      const inputUnderline = '<u>First line\nSecond line</u>';
+      expect(sanitizeDescription(inputUnderline), equals('<u>First line</u>\n<u>Second line</u>'));
+    });
+
+    testWidgets('RichDescriptionView renders multi-line bold without showing literal **', (tester) async {
+      const multiLineBold = '**TIME:\n1:30 PM - 2:00 PM**';
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: RichDescriptionView(description: multiLineBold),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('**'), findsNothing);
+      expect(find.textContaining('TIME:'), findsOneWidget);
+      expect(find.textContaining('1:30 PM - 2:00 PM'), findsOneWidget);
+    });
   });
 }

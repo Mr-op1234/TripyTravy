@@ -185,6 +185,36 @@ class _AddDayDialogState extends State<AddDayDialog> {
   late final TextEditingController _dateController;
   late final TextEditingController _descriptionController;
   bool _isSaving = false;
+  bool _canPop = false;
+  bool _isExplicitCancel = false;
+
+  void _onCancel() {
+    _isExplicitCancel = true;
+    _canPop = true;
+    Navigator.pop(context);
+  }
+
+  Future<void> _autoSaveAndPop() async {
+    if (_isSaving) return;
+    final title = _titleController.text.trim();
+    final desc = _descriptionController.text.trim();
+    final date = _dateController.text.trim();
+    final hasContent = title.isNotEmpty || desc.isNotEmpty || date.isNotEmpty || widget.dayToEdit != null;
+
+    if (!hasContent) {
+      if (mounted) {
+        setState(() => _canPop = true);
+        Navigator.pop(context);
+      }
+      return;
+    }
+
+    if (title.isEmpty) {
+      _titleController.text = widget.dayToEdit?.title ?? 'Day ${widget.nextDayNumber}';
+    }
+
+    await _saveDay(isAutoSave: true);
+  }
 
   @override
   void initState() {
@@ -208,9 +238,12 @@ class _AddDayDialogState extends State<AddDayDialog> {
     super.dispose();
   }
 
-  Future<void> _saveDay() async {
+  Future<void> _saveDay({bool isAutoSave = false}) async {
     final title = _titleController.text.trim();
-    if (title.isEmpty) return;
+    if (title.isEmpty) {
+      if (!isAutoSave) return;
+      _titleController.text = widget.dayToEdit?.title ?? 'Day ${widget.nextDayNumber}';
+    }
 
     final desc = _descriptionController.text.trim().isEmpty
         ? null
@@ -221,7 +254,7 @@ class _AddDayDialogState extends State<AddDayDialog> {
     try {
       if (widget.dayToEdit != null) {
         final updated = widget.dayToEdit!.copyWith(
-          title: title,
+          title: _titleController.text.trim(),
           description: desc,
           date: _dateController.text.trim().isEmpty
               ? null
@@ -233,7 +266,7 @@ class _AddDayDialogState extends State<AddDayDialog> {
           id: 'day_${widget.itineraryId}_${DateTime.now().millisecondsSinceEpoch}',
           itineraryId: widget.itineraryId,
           dayNumber: widget.nextDayNumber,
-          title: title,
+          title: _titleController.text.trim(),
           description: desc,
           date: _dateController.text.trim().isEmpty
               ? null
@@ -244,17 +277,17 @@ class _AddDayDialogState extends State<AddDayDialog> {
       }
 
       if (mounted) {
+        setState(() => _canPop = true);
         Navigator.pop(context, true);
         widget.onDaySaved();
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to save day: $e')),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -262,11 +295,24 @@ class _AddDayDialogState extends State<AddDayDialog> {
   Widget build(BuildContext context) {
     final isEditing = widget.dayToEdit != null;
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      child: Container(
+    return PopScope(
+      canPop: _canPop,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (_isExplicitCancel) {
+          if (mounted) {
+            setState(() => _canPop = true);
+            Navigator.pop(context);
+          }
+          return;
+        }
+        await _autoSaveAndPop();
+      },
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        child: Container(
         width: 420,
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -384,7 +430,7 @@ class _AddDayDialogState extends State<AddDayDialog> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: _onCancel,
                   child: const Text('Cancel',
                       style: TextStyle(color: Color(0xFF64748B))),
                 ),
@@ -413,7 +459,8 @@ class _AddDayDialogState extends State<AddDayDialog> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 
@@ -1922,12 +1969,67 @@ class _AddEventDialogState extends State<AddEventDialog> {
     });
   }
 
-  Future<void> _saveEvent() async {
-    final title = _titleController.text.trim();
-    if (title.isEmpty) {
-      setState(() => _errorMessage = 'Event Title is required.');
+  bool _canPop = false;
+  bool _isExplicitCancel = false;
+  bool _isSaving = false;
+
+  void _onCancel() {
+    _isExplicitCancel = true;
+    _canPop = true;
+    Navigator.pop(context);
+  }
+
+  Future<void> _autoSaveAndPop() async {
+    if (_isSaving) return;
+    final rawTitle = _titleController.text.trim();
+    final hasDesc = _descriptionController.text.trim().isNotEmpty;
+    final hasLoc = _fetchedLocations.isNotEmpty;
+    final hasPhotos = _photosList.isNotEmpty;
+    final hasAttachments = _attachedFiles.isNotEmpty || _existingAttachments.isNotEmpty;
+    final hasContent = rawTitle.isNotEmpty ||
+        hasDesc ||
+        hasLoc ||
+        hasPhotos ||
+        hasAttachments ||
+        widget.eventToEdit != null;
+
+    if (!hasContent) {
+      if (mounted) {
+        setState(() => _canPop = true);
+        Navigator.pop(context);
+      }
       return;
     }
+
+    if (rawTitle.isEmpty) {
+      if (hasLoc) {
+        _titleController.text = _fetchedLocations.first.locationName;
+      } else if (hasDesc) {
+        final firstLine =
+            _descriptionController.text.trim().split('\n').first.trim();
+        _titleController.text =
+            firstLine.length > 50 ? '${firstLine.substring(0, 50)}...' : firstLine;
+      } else {
+        _titleController.text = '$_selectedCategory Event';
+      }
+    }
+
+    await _saveEvent(isAutoSave: true);
+  }
+
+  Future<void> _saveEvent({bool isAutoSave = false}) async {
+    if (_isSaving) return;
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      if (isAutoSave) {
+        _titleController.text = '$_selectedCategory Event';
+      } else {
+        setState(() => _errorMessage = 'Event Title is required.');
+        return;
+      }
+    }
+
+    setState(() => _isSaving = true);
 
     final combinedAttachments = <Map<String, String>>[..._existingAttachments];
     for (var i = 0; i < _attachedFiles.length; i++) {
@@ -2033,11 +2135,17 @@ class _AddEventDialogState extends State<AddEventDialog> {
         await ItineraryDatabase.instance.insertEvent(event);
       }
       if (mounted) {
+        setState(() => _canPop = true);
         Navigator.pop(context);
         widget.onEventSaved();
       }
     } catch (e) {
-      setState(() => _errorMessage = 'Failed to save event: $e');
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _errorMessage = 'Failed to save event: $e';
+        });
+      }
     }
   }
 
@@ -3028,7 +3136,20 @@ class _AddEventDialogState extends State<AddEventDialog> {
     final totalAttachmentsCount =
         _existingAttachments.length + _attachedFiles.length;
 
-    return Dialog(
+    return PopScope(
+      canPop: _canPop,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (_isExplicitCancel) {
+          if (mounted) {
+            setState(() => _canPop = true);
+            Navigator.pop(context);
+          }
+          return;
+        }
+        await _autoSaveAndPop();
+      },
+      child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
@@ -3665,13 +3786,13 @@ class _AddEventDialogState extends State<AddEventDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _onCancel,
                     child: const Text('Cancel',
                         style: TextStyle(color: Color(0xFF64748B))),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
-                    onPressed: _saveEvent,
+                    onPressed: _isSaving ? null : () => _saveEvent(),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
@@ -3689,7 +3810,8 @@ class _AddEventDialogState extends State<AddEventDialog> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildAttachmentRow(String name, String size, VoidCallback onRemove,

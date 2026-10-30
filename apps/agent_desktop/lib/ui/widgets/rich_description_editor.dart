@@ -261,6 +261,84 @@ ExtractedContent extractTableAndText(String raw) {
 /// and removing any stray XML tags. Preserves <u>...</u> for underline.
 String sanitizeDescription(String input) {
   var s = input;
+
+  // 1. Normalize multi-line bold **...** across newlines into per-line **...**
+  s = s.replaceAllMapped(
+    RegExp(r'\*\*(.+?)\*\*', dotAll: true),
+    (m) {
+      final inner = m.group(1)!;
+      if (!inner.contains('\n')) return m.group(0)!;
+      return inner.split('\n').map((line) {
+        if (line.trim().isEmpty) return line;
+        final leadingWsCount = line.length - line.trimLeft().length;
+        final trailingWsCount = line.length - line.trimRight().length;
+        final leading = line.substring(0, leadingWsCount);
+        final trailing = line.substring(line.length - trailingWsCount);
+        return '$leading**${line.trim()}**$trailing';
+      }).join('\n');
+    },
+  );
+
+  // 2. Normalize multi-line underline <u>...</u> across newlines
+  s = s.replaceAllMapped(
+    RegExp(r'<u>(.*?)</u>', caseSensitive: false, dotAll: true),
+    (m) {
+      final inner = m.group(1)!;
+      if (!inner.contains('\n')) return m.group(0)!;
+      return inner.split('\n').map((line) {
+        if (line.trim().isEmpty) return line;
+        final leadingWsCount = line.length - line.trimLeft().length;
+        final trailingWsCount = line.length - line.trimRight().length;
+        final leading = line.substring(0, leadingWsCount);
+        final trailing = line.substring(line.length - trailingWsCount);
+        return '$leading<u>${line.trim()}</u>$trailing';
+      }).join('\n');
+    },
+  );
+
+  // 3. Normalize multi-line italic *...* across newlines
+  s = s.replaceAllMapped(
+    RegExp(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', dotAll: true),
+    (m) {
+      final inner = m.group(1)!;
+      if (!inner.contains('\n')) return m.group(0)!;
+      return inner.split('\n').map((line) {
+        if (line.trim().isEmpty) return line;
+        final leadingWsCount = line.length - line.trimLeft().length;
+        final trailingWsCount = line.length - line.trimRight().length;
+        final leading = line.substring(0, leadingWsCount);
+        final trailing = line.substring(line.length - trailingWsCount);
+        return '$leading*${line.trim()}*$trailing';
+      }).join('\n');
+    },
+  );
+
+  // 4. Normalize multi-line highlight ==...== across newlines
+  s = s.replaceAllMapped(
+    RegExp(r'==([^=]+?)==', dotAll: true),
+    (m) {
+      final inner = m.group(1)!;
+      if (!inner.contains('\n')) return m.group(0)!;
+      String prefix = '';
+      String content = inner;
+      if (content.startsWith('red:')) {
+        prefix = 'red:';
+        content = content.substring(4);
+      } else if (content.startsWith('navy:')) {
+        prefix = 'navy:';
+        content = content.substring(5);
+      }
+      return content.split('\n').map((line) {
+        if (line.trim().isEmpty) return line;
+        final leadingWsCount = line.length - line.trimLeft().length;
+        final trailingWsCount = line.length - line.trimRight().length;
+        final leading = line.substring(0, leadingWsCount);
+        final trailing = line.substring(line.length - trailingWsCount);
+        return '$leading==$prefix${line.trim()}==$trailing';
+      }).join('\n');
+    },
+  );
+
   // Convert <mark>...</mark> to ==...==
   s = s.replaceAllMapped(
       RegExp(r'<mark[^>]*>(.*?)</mark>', caseSensitive: false, dotAll: true),
@@ -483,7 +561,8 @@ List<FormattedSegment> _tokenizeFormattedString(
 }
 
 FormattedParseResult parseFormattedString(String input) {
-  final segments = _tokenizeFormattedString(input, CharFormatting());
+  final sanitized = sanitizeDescription(input);
+  final segments = _tokenizeFormattedString(sanitized, CharFormatting());
   final buf = StringBuffer();
   final styles = <CharFormatting>[];
 
@@ -882,6 +961,39 @@ class RichTextEditingController extends TextEditingController {
     }
   }
 
+  static String _formatSingleLine(String line, CharFormatting f) {
+    if (line.trim().isEmpty) return line;
+    final leadingWsCount = line.length - line.trimLeft().length;
+    final trailingWsCount = line.length - line.trimRight().length;
+    final leadingWs = line.substring(0, leadingWsCount);
+    final trailingWs = line.substring(line.length - trailingWsCount);
+    final core = line.trim();
+
+    String formatted = core;
+    if (f.linkUrl != null) {
+      formatted = '[$formatted](${f.linkUrl})';
+    }
+    if (f.underline) {
+      formatted = '<u>$formatted</u>';
+    }
+    if (f.italic) {
+      formatted = '*$formatted*';
+    }
+    if (f.bold) {
+      formatted = '**$formatted**';
+    }
+    if (f.highlight != null) {
+      if (f.highlight == HighlightColor.lightRed) {
+        formatted = '==red:$formatted==';
+      } else if (f.highlight == HighlightColor.navyBlue) {
+        formatted = '==navy:$formatted==';
+      } else {
+        formatted = '==$formatted==';
+      }
+    }
+    return '$leadingWs$formatted$trailingWs';
+  }
+
   String serialize() {
     if (text.isEmpty) return '';
     final n = text.length;
@@ -908,38 +1020,14 @@ class RichTextEditingController extends TextEditingController {
           f.linkUrl == null) {
         buf.write(rawChunk);
       } else {
-        final leadingWsCount = rawChunk.length - rawChunk.trimLeft().length;
-        final trailingWsCount = rawChunk.length - rawChunk.trimRight().length;
-        final leadingWs = rawChunk.substring(0, leadingWsCount);
-        final trailingWs = rawChunk.substring(rawChunk.length - trailingWsCount);
-        final core = rawChunk.trim();
-
-        if (core.isEmpty) {
-          buf.write(rawChunk);
+        if (rawChunk.contains('\n')) {
+          final lines = rawChunk.split('\n');
+          for (int i = 0; i < lines.length; i++) {
+            if (i > 0) buf.write('\n');
+            buf.write(_formatSingleLine(lines[i], f));
+          }
         } else {
-          String formatted = core;
-          if (f.linkUrl != null) {
-            formatted = '[$formatted](${f.linkUrl})';
-          }
-          if (f.underline) {
-            formatted = '<u>$formatted</u>';
-          }
-          if (f.italic) {
-            formatted = '*$formatted*';
-          }
-          if (f.bold) {
-            formatted = '**$formatted**';
-          }
-          if (f.highlight != null) {
-            if (f.highlight == HighlightColor.lightRed) {
-              formatted = '==red:$formatted==';
-            } else if (f.highlight == HighlightColor.navyBlue) {
-              formatted = '==navy:$formatted==';
-            } else {
-              formatted = '==$formatted==';
-            }
-          }
-          buf.write('$leadingWs$formatted$trailingWs');
+          buf.write(_formatSingleLine(rawChunk, f));
         }
       }
       start = end;

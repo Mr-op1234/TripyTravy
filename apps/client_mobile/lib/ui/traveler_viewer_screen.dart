@@ -758,11 +758,7 @@ class _TravelerItineraryViewScreenState
           // Description
           if (hasDesc) ...[
             const SizedBox(height: 10),
-            Text(
-              desc,
-              style: const TextStyle(
-                  fontSize: 13, color: Color(0xFF475569), height: 1.4),
-            ),
+            _buildDescriptionWidget(desc),
           ],
 
           // PHOTOS Gallery
@@ -827,6 +823,80 @@ class _TravelerItineraryViewScreenState
         ],
       ),
     );
+  }
+
+  Widget _buildDescriptionWidget(String text) {
+    const baseStyle =
+        TextStyle(fontSize: 13, color: Color(0xFF475569), height: 1.4);
+    if (!text.contains('**') &&
+        !text.contains('*') &&
+        !text.contains('<u>') &&
+        !text.contains('==') &&
+        !text.contains('[')) {
+      return Text(text, style: baseStyle);
+    }
+    return Text.rich(
+      TextSpan(children: _parseDescriptionSpans(text, baseStyle)),
+    );
+  }
+
+  static List<InlineSpan> _parseDescriptionSpans(
+      String text, TextStyle baseStyle) {
+    if (text.isEmpty) return [TextSpan(text: '', style: baseStyle)];
+    final tokenRegex = RegExp(
+      r'(\*\*([^\*\n]+)\*\*|'
+      r'(?<!\*)\*([^\*\n]+)\*(?!\*)|'
+      r'<u>(.*?)</u>|'
+      r'==([^=\n]+)==|'
+      r'\[([^\]\n]+)\]\(([^)\n]*)\))',
+      caseSensitive: false,
+    );
+    final spans = <InlineSpan>[];
+    int last = 0;
+    for (final m in tokenRegex.allMatches(text)) {
+      if (m.start > last) {
+        spans.add(
+            TextSpan(text: text.substring(last, m.start), style: baseStyle));
+      }
+      final matched = m.group(0)!;
+      if (matched.startsWith('**') && matched.endsWith('**')) {
+        final inner = m.group(2) ?? matched.substring(2, matched.length - 2);
+        spans.add(TextSpan(
+            text: inner,
+            style: baseStyle.copyWith(fontWeight: FontWeight.bold)));
+      } else if (matched.startsWith('*') && matched.endsWith('*')) {
+        final inner = m.group(3) ?? matched.substring(1, matched.length - 1);
+        spans.add(TextSpan(
+            text: inner,
+            style: baseStyle.copyWith(fontStyle: FontStyle.italic)));
+      } else if (matched.toLowerCase().startsWith('<u>')) {
+        final inner = m.group(4) ?? matched.substring(3, matched.length - 4);
+        spans.add(TextSpan(
+            text: inner,
+            style: baseStyle.copyWith(decoration: TextDecoration.underline)));
+      } else if (matched.startsWith('==') && matched.endsWith('==')) {
+        var inner = m.group(5) ?? matched.substring(2, matched.length - 2);
+        if (inner.startsWith('red:')) inner = inner.substring(4);
+        if (inner.startsWith('navy:')) inner = inner.substring(5);
+        spans.add(TextSpan(
+            text: inner,
+            style: baseStyle.copyWith(
+                backgroundColor: const Color(0xFFFEF08A),
+                fontWeight: FontWeight.w600)));
+      } else if (matched.startsWith('[')) {
+        final label = m.group(6) ?? '';
+        spans.add(TextSpan(
+            text: label,
+            style: baseStyle.copyWith(
+                color: const Color(0xFF2563EB),
+                decoration: TextDecoration.underline)));
+      }
+      last = m.end;
+    }
+    if (last < text.length) {
+      spans.add(TextSpan(text: text.substring(last), style: baseStyle));
+    }
+    return spans;
   }
 
   Widget _buildEventDocumentPill(BuildContext context, TripDocumentRecord doc) {
