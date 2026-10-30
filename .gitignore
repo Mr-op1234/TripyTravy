@@ -121,3 +121,4 @@ app.*.symbols
 # TripyTravy exported containers
 *.tt
 /SwitzerLand/
+*.apk

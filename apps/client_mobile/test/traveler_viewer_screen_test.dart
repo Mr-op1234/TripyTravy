@@ -261,10 +261,11 @@ void main() {
     // Verify PHOTOS section
     expect(find.text('PHOTOS'), findsOneWidget);
 
-    // Verify DOCUMENTS & PASSES section
+    // Verify DOCUMENTS & PASSES section - eye button removed, entire frame is clickable
     expect(find.text('DOCUMENTS & PASSES'), findsOneWidget);
     expect(find.text('Terminal Harness Agent.pdf'), findsOneWidget);
     expect(find.text('PDF Document · 307 KB'), findsOneWidget);
-    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.visibility_outlined), findsNothing);
+    expect(find.byType(InkWell), findsWidgets);
   });
 }

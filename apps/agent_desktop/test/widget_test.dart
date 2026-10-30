@@ -970,11 +970,12 @@ void main() {
               'https://www.google.com/maps/search/?api=1&query=victoria+memorial'),
           findsOneWidget);
 
-      // 6. Attachment pill with paperclip, bold name, friendly file type subtitle, and eye preview button
+      // 6. Attachment pill with paperclip, bold name, friendly file type subtitle, and clickable frame (eye button removed)
       expect(find.byIcon(Icons.attach_file_rounded), findsOneWidget);
       expect(find.text('passport.pdf'), findsOneWidget);
       expect(find.text('PDF Document · 5.3 MB'), findsOneWidget);
-      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_outlined), findsNothing);
+      expect(find.byType(InkWell), findsWidgets);
     });
 
     testWidgets(

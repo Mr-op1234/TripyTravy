@@ -889,12 +889,7 @@ class _TravelerItineraryViewScreenState
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'Open Document',
-                onPressed: () => _openDocument(context, doc),
-                icon: const Icon(Icons.visibility_outlined,
-                    size: 20, color: Color(0xFF2563EB)),
-              ),
+              const SizedBox(width: 14),
             ],
           ),
         ),

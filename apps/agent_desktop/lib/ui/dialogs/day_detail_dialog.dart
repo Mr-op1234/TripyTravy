@@ -596,55 +596,59 @@ class _DayDetailDialogState extends State<DayDetailDialog> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.horizontal(left: Radius.circular(13)),
-            ),
-            child: const Center(
-              child: Icon(Icons.attach_file_rounded,
-                  size: 22, color: Color(0xFF334155)),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _openFile(path),
+          hoverColor: const Color(0xFF2563EB).withValues(alpha: 0.04),
+          splashColor: const Color(0xFF2563EB).withValues(alpha: 0.1),
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.horizontal(left: Radius.circular(13)),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style:
-                      const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: const Center(
+                  child: Icon(Icons.attach_file_rounded,
+                      size: 22, color: Color(0xFF334155)),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style:
+                          const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+            ],
           ),
-          IconButton(
-            tooltip: 'Preview / Open Document',
-            onPressed: () => _openFile(path),
-            icon: const Icon(Icons.visibility_outlined,
-                size: 19, color: Color(0xFF0F172A)),
-            splashRadius: 18,
-          ),
-          const SizedBox(width: 8),
-        ],
+        ),
       ),
     );
   }
