@@ -465,4 +465,76 @@ void main() {
         warnIfMissed: false);
     await tester.pumpAndSettle();
   });
+
+  testWidgets(
+      'Event card renders location cards and formatted multi-line bold and highlights',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    const tripWithLocationAndRichDesc = TripPackage(
+      tripId: 'trip_kashmir_test',
+      title: 'Kashmir Paradise',
+      subtitle: 'Scenic Dal lake and airport transfer',
+      startDateIso8601: '2026-10-16',
+      endDateIso8601: '2026-10-23',
+      primaryTimezoneIana: 'Asia/Kolkata',
+      days: [
+        ItineraryDay(
+          dayNumber: 1,
+          dateIso8601: '2026-10-16',
+          title: 'Arrival in Srinagar',
+          description: 'Transfer to hotel and Shikara ride',
+          primaryTimezoneIana: 'Asia/Kolkata',
+          events: [
+            ItineraryEvent(
+              eventId: 'ev_srinagar_transfer',
+              eventType: EventType.activity,
+              title: 'Arrival in Srinagar & Transfer to Hotel',
+              category: 'Activity',
+              subCategory: 'Other',
+              startIso8601: '2026-10-16T13:30:00',
+              endIso8601: '2026-10-16T14:00:00',
+              timezoneIana: 'Asia/Kolkata',
+              locationName: 'Srinagar International Airport',
+              latitude: 33.9944,
+              longitude: 74.7691,
+              mapUrl: 'https://maps.app.goo.gl/evunuGGUkgX2mqCB9',
+              description:
+                  'Arrive at Srinagar Airport.\n\n**TIME:\n1:30 PM - 2:00 PM**\n\nWHAT TO DO:\n• ==Transfer ~12–15 km to the hotel==',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TravelerItineraryViewScreen(
+          di: testDi,
+          trip: tripWithLocationAndRichDesc,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Tap Day 1 to open DayScheduleScreen
+    await tester.tap(find.text('Day 1: Arrival in Srinagar'));
+    await tester.pumpAndSettle();
+
+    // Verify Location Card is rendered
+    expect(find.text('Srinagar International Airport'), findsOneWidget);
+    expect(find.text('33.9944° N, 74.7691° E'), findsOneWidget);
+    expect(find.byIcon(Icons.location_on_rounded), findsWidgets);
+    expect(find.byIcon(Icons.open_in_new_rounded), findsWidgets);
+
+    // Verify Description does NOT display raw markdown tokens '**' or '=='
+    expect(find.textContaining('**TIME:'), findsNothing);
+    expect(find.textContaining('==Transfer'), findsNothing);
+
+    // Verify the text content is present within Text.rich
+    expect(find.byType(RichText), findsWidgets);
+  });
 }

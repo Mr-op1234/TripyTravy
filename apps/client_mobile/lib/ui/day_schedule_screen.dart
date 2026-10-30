@@ -828,37 +828,8 @@ class _DayScheduleScreenState extends State<DayScheduleScreen> {
             _buildDescriptionWidget(desc),
           ],
 
-          // Location Link Pill (if location available)
-          if (location != null && location.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.location_on_rounded,
-                      size: 15, color: Color(0xFF2563EB)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      location,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1D4ED8),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          // Location Cards (Location, Coordinates, and Map link)
+          _buildLocationCards(context, ev),
 
           // PHOTOS Gallery
           if (hasPhotos) ...[
@@ -924,6 +895,132 @@ class _DayScheduleScreenState extends State<DayScheduleScreen> {
     );
   }
 
+  Widget _buildLocationCards(BuildContext context, ItineraryEvent ev) {
+    final cards = ev.locationCards;
+    if (cards.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: cards.map((loc) {
+          final locName = (loc['locationName'] as String?)?.trim() ?? '';
+          final rawUrl = (loc['rawUrl'] as String?)?.trim() ?? '';
+          final lat = (loc['latitude'] as num?)?.toDouble();
+          final lng = (loc['longitude'] as num?)?.toDouble();
+
+          String coordsText = '';
+          if (lat != null && lng != null) {
+            final latDir = lat >= 0 ? 'N' : 'S';
+            final lngDir = lng >= 0 ? 'E' : 'W';
+            coordsText =
+                '${lat.abs().toStringAsFixed(4)}° $latDir, ${lng.abs().toStringAsFixed(4)}° $lngDir';
+          } else if (rawUrl.isNotEmpty && !rawUrl.startsWith('http')) {
+            coordsText = rawUrl;
+          }
+
+          final displayName = locName.isNotEmpty
+              ? locName
+              : (coordsText.isNotEmpty ? coordsText : 'Location Map');
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: (rawUrl.isNotEmpty || (lat != null && lng != null))
+                    ? () => _openMapLocation(
+                        context, rawUrl, lat, lng, displayName)
+                    : null,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF2563EB),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.location_on_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              displayName,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (coordsText.isNotEmpty &&
+                                coordsText != displayName) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                coordsText,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: Color(0xFF64748B),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (rawUrl.isNotEmpty || (lat != null && lng != null))
+                        const Icon(
+                          Icons.open_in_new_rounded,
+                          size: 16,
+                          color: Color(0xFF2563EB),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Future<void> _openMapLocation(BuildContext context, String rawUrl,
+      double? lat, double? lng, String title) async {
+    try {
+      String targetUrl = rawUrl;
+      if (targetUrl.isEmpty && lat != null && lng != null) {
+        targetUrl =
+            'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+      }
+      if (targetUrl.isNotEmpty) {
+        const platform =
+            MethodChannel('com.tripytravy.client_mobile/file_intent');
+        await platform.invokeMethod('openUrl', {'url': targetUrl});
+      }
+    } catch (_) {}
+  }
+
   Widget _buildDescriptionWidget(String text) {
     const baseStyle =
         TextStyle(fontSize: 13, color: Color(0xFF475569), height: 1.4);
@@ -943,10 +1040,10 @@ class _DayScheduleScreenState extends State<DayScheduleScreen> {
       String text, TextStyle baseStyle) {
     if (text.isEmpty) return [TextSpan(text: '', style: baseStyle)];
     final tokenRegex = RegExp(
-      r'(\*\*([^\*\n]+)\*\*|'
-      r'(?<!\*)\*([^\*\n]+)\*(?!\*)|'
-      r'<u>(.*?)</u>|'
-      r'==([^=\n]+)==|'
+      r'(\*\*((?:[^\*]|\*(?!\*))+?)\*\*|'
+      r'(?<!\*)\*([^\*\n]+?)\*(?!\*)|'
+      r'<u>([\s\S]*?)</u>|'
+      r'==((?:[^=]|=(?!=))+?)==|'
       r'\[([^\]\n]+)\]\(([^)\n]*)\))',
       caseSensitive: false,
     );
@@ -962,7 +1059,9 @@ class _DayScheduleScreenState extends State<DayScheduleScreen> {
         final inner = m.group(2) ?? matched.substring(2, matched.length - 2);
         spans.add(TextSpan(
             text: inner,
-            style: baseStyle.copyWith(fontWeight: FontWeight.bold)));
+            style: baseStyle.copyWith(
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF0F172A))));
       } else if (matched.startsWith('*') && matched.endsWith('*')) {
         final inner = m.group(3) ?? matched.substring(1, matched.length - 1);
         spans.add(TextSpan(
@@ -975,12 +1074,22 @@ class _DayScheduleScreenState extends State<DayScheduleScreen> {
             style: baseStyle.copyWith(decoration: TextDecoration.underline)));
       } else if (matched.startsWith('==') && matched.endsWith('==')) {
         var inner = m.group(5) ?? matched.substring(2, matched.length - 2);
-        if (inner.startsWith('red:')) inner = inner.substring(4);
-        if (inner.startsWith('navy:')) inner = inner.substring(5);
+        Color hlBg = const Color(0xFFFEF08A);
+        Color hlText = const Color(0xFF0F172A);
+        if (inner.startsWith('red:')) {
+          inner = inner.substring(4);
+          hlBg = const Color(0xFFFEE2E2);
+          hlText = const Color(0xFF991B1B);
+        } else if (inner.startsWith('navy:')) {
+          inner = inner.substring(5);
+          hlBg = const Color(0xFFE0E7FF);
+          hlText = const Color(0xFF1E1B4B);
+        }
         spans.add(TextSpan(
             text: inner,
             style: baseStyle.copyWith(
-                backgroundColor: const Color(0xFFFEF08A),
+                backgroundColor: hlBg,
+                color: hlText,
                 fontWeight: FontWeight.w600)));
       } else if (matched.startsWith('[')) {
         final label = m.group(6) ?? '';

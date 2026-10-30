@@ -54,6 +54,22 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGUMENT", "Path is required", null)
                     }
                 }
+                "openUrl" -> {
+                    val urlStr = call.argument<String>("url")
+                    if (urlStr != null) {
+                        try {
+                            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(urlStr)).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(browserIntent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("URL_FAILED", e.message, null)
+                        }
+                    } else {
+                        result.error("INVALID_ARGUMENT", "URL is required", null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

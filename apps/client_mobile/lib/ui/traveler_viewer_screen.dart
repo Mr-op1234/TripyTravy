@@ -738,10 +738,10 @@ class _TravelerItineraryViewScreenState
       String text, TextStyle baseStyle) {
     if (text.isEmpty) return [TextSpan(text: '', style: baseStyle)];
     final tokenRegex = RegExp(
-      r'(\*\*([^\*\n]+)\*\*|'
-      r'(?<!\*)\*([^\*\n]+)\*(?!\*)|'
-      r'<u>(.*?)</u>|'
-      r'==([^=\n]+)==|'
+      r'(\*\*((?:[^\*]|\*(?!\*))+?)\*\*|'
+      r'(?<!\*)\*([^\*\n]+?)\*(?!\*)|'
+      r'<u>([\s\S]*?)</u>|'
+      r'==((?:[^=]|=(?!=))+?)==|'
       r'\[([^\]\n]+)\]\(([^)\n]*)\))',
       caseSensitive: false,
     );
@@ -757,7 +757,9 @@ class _TravelerItineraryViewScreenState
         final inner = m.group(2) ?? matched.substring(2, matched.length - 2);
         spans.add(TextSpan(
             text: inner,
-            style: baseStyle.copyWith(fontWeight: FontWeight.bold)));
+            style: baseStyle.copyWith(
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF0F172A))));
       } else if (matched.startsWith('*') && matched.endsWith('*')) {
         final inner = m.group(3) ?? matched.substring(1, matched.length - 1);
         spans.add(TextSpan(
@@ -770,12 +772,22 @@ class _TravelerItineraryViewScreenState
             style: baseStyle.copyWith(decoration: TextDecoration.underline)));
       } else if (matched.startsWith('==') && matched.endsWith('==')) {
         var inner = m.group(5) ?? matched.substring(2, matched.length - 2);
-        if (inner.startsWith('red:')) inner = inner.substring(4);
-        if (inner.startsWith('navy:')) inner = inner.substring(5);
+        Color hlBg = const Color(0xFFFEF08A);
+        Color hlText = const Color(0xFF0F172A);
+        if (inner.startsWith('red:')) {
+          inner = inner.substring(4);
+          hlBg = const Color(0xFFFEE2E2);
+          hlText = const Color(0xFF991B1B);
+        } else if (inner.startsWith('navy:')) {
+          inner = inner.substring(5);
+          hlBg = const Color(0xFFE0E7FF);
+          hlText = const Color(0xFF1E1B4B);
+        }
         spans.add(TextSpan(
             text: inner,
             style: baseStyle.copyWith(
-                backgroundColor: const Color(0xFFFEF08A),
+                backgroundColor: hlBg,
+                color: hlText,
                 fontWeight: FontWeight.w600)));
       } else if (matched.startsWith('[')) {
         final label = m.group(6) ?? '';

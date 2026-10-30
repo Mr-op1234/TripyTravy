@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../value_objects/geo_coordinate.dart';
 import 'trip_document_record.dart';
 
@@ -401,6 +402,11 @@ class ItineraryEvent {
   final ActivityDetails? activity;
   final MealDetails? meal;
   final NoteDetails? note;
+  final String? locationName;
+  final String? mapUrl;
+  final double? latitude;
+  final double? longitude;
+  final String? locationsJson;
 
   const ItineraryEvent({
     required this.eventId,
@@ -422,6 +428,11 @@ class ItineraryEvent {
     this.activity,
     this.meal,
     this.note,
+    this.locationName,
+    this.mapUrl,
+    this.latitude,
+    this.longitude,
+    this.locationsJson,
   });
 
   ItineraryEvent copyWith({
@@ -442,6 +453,11 @@ class ItineraryEvent {
     ActivityDetails? activity,
     MealDetails? meal,
     NoteDetails? note,
+    String? locationName,
+    String? mapUrl,
+    double? latitude,
+    double? longitude,
+    String? locationsJson,
   }) {
     return ItineraryEvent(
       eventId: eventId,
@@ -463,7 +479,81 @@ class ItineraryEvent {
       activity: activity ?? this.activity,
       meal: meal ?? this.meal,
       note: note ?? this.note,
+      locationName: locationName ?? this.locationName,
+      mapUrl: mapUrl ?? this.mapUrl,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      locationsJson: locationsJson ?? this.locationsJson,
     );
+  }
+
+  /// Returns parsed location card items for this event.
+  List<Map<String, dynamic>> get locationCards {
+    final list = <Map<String, dynamic>>[];
+    if (locationsJson != null && locationsJson!.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(locationsJson!);
+        if (decoded is List) {
+          for (final item in decoded) {
+            if (item is Map) {
+              list.add(Map<String, dynamic>.from(item));
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    if (list.isEmpty) {
+      if (locationName != null && locationName!.trim().isNotEmpty) {
+        list.add({
+          'locationName': locationName!,
+          'latitude': latitude,
+          'longitude': longitude,
+          'rawUrl': mapUrl ?? '',
+        });
+      } else if (mapUrl != null && mapUrl!.trim().isNotEmpty) {
+        list.add({
+          'locationName': 'Location',
+          'latitude': latitude,
+          'longitude': longitude,
+          'rawUrl': mapUrl!,
+        });
+      } else if (activity != null &&
+          activity!.meetingPointAddress.trim().isNotEmpty) {
+        list.add({
+          'locationName': activity!.meetingPointAddress,
+          'latitude': activity!.coordinates?.latitude,
+          'longitude': activity!.coordinates?.longitude,
+          'rawUrl': '',
+        });
+      } else if (lodging != null && lodging!.address.trim().isNotEmpty) {
+        list.add({
+          'locationName': lodging!.propertyName.isNotEmpty
+              ? lodging!.propertyName
+              : lodging!.address,
+          'latitude': lodging!.coordinates?.latitude,
+          'longitude': lodging!.coordinates?.longitude,
+          'rawUrl': '',
+        });
+      } else if (meal != null && meal!.address.trim().isNotEmpty) {
+        list.add({
+          'locationName': meal!.restaurantName.isNotEmpty
+              ? meal!.restaurantName
+              : meal!.address,
+          'latitude': meal!.coordinates?.latitude,
+          'longitude': meal!.coordinates?.longitude,
+          'rawUrl': '',
+        });
+      } else if (transport != null &&
+          transport!.pickupLocation.trim().isNotEmpty) {
+        list.add({
+          'locationName': transport!.pickupLocation,
+          'latitude': null,
+          'longitude': null,
+          'rawUrl': '',
+        });
+      }
+    }
+    return list;
   }
 
   Map<String, dynamic> toJson() => {
@@ -486,6 +576,11 @@ class ItineraryEvent {
         if (activity != null) 'activity': activity!.toJson(),
         if (meal != null) 'meal': meal!.toJson(),
         if (note != null) 'note': note!.toJson(),
+        if (locationName != null && locationName!.isNotEmpty) 'locationName': locationName,
+        if (mapUrl != null && mapUrl!.isNotEmpty) 'mapUrl': mapUrl,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        if (locationsJson != null && locationsJson!.isNotEmpty) 'locationsJson': locationsJson,
       };
 
   factory ItineraryEvent.fromJson(Map<String, dynamic> json) {
@@ -512,6 +607,11 @@ class ItineraryEvent {
       activity: json['activity'] != null ? ActivityDetails.fromJson(json['activity'] as Map<String, dynamic>) : null,
       meal: json['meal'] != null ? MealDetails.fromJson(json['meal'] as Map<String, dynamic>) : null,
       note: json['note'] != null ? NoteDetails.fromJson(json['note'] as Map<String, dynamic>) : null,
+      locationName: json['locationName'] as String?,
+      mapUrl: json['mapUrl'] as String?,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      locationsJson: json['locationsJson'] as String?,
     );
   }
 }

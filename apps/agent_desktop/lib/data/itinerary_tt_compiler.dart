@@ -386,6 +386,11 @@ class ItineraryTtCompiler {
       activity: activity,
       meal: meal,
       note: note,
+      locationName: e.locationName ?? (e.location.isNotEmpty ? e.location : null),
+      mapUrl: e.mapUrl,
+      latitude: e.latitude,
+      longitude: e.longitude,
+      locationsJson: e.locationsJson,
     );
   }
 
