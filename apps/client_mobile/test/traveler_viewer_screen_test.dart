@@ -254,8 +254,9 @@ void main() {
     expect(find.text('Day 1: Day 1'), findsOneWidget);
     expect(find.text('Events & Schedule'), findsOneWidget);
 
-    // Verify Event title and badge
-    expect(find.text('DOCS'), findsOneWidget);
+    // Verify Event title in both top index card and detailed event card
+    expect(find.text('DOCS'), findsNWidgets(2));
+    expect(find.text('DAY OVERVIEW'), findsOneWidget);
     expect(find.text('INFO · INFO'), findsOneWidget);
 
     // Verify PHOTOS section
@@ -267,5 +268,201 @@ void main() {
     expect(find.text('PDF Document · 307 KB'), findsOneWidget);
     expect(find.byIcon(Icons.visibility_outlined), findsNothing);
     expect(find.byType(InkWell), findsWidgets);
+  });
+
+  testWidgets(
+      'Itinerary main screen displays category icon badges on right side of day tiles',
+      (WidgetTester tester) async {
+    const multiEventTrip = TripPackage(
+      tripId: 'trip_badges_test',
+      title: 'Kashmir Expedition',
+      subtitle: 'Scenic adventure in Kashmir valley',
+      startDateIso8601: '2026-10-16',
+      endDateIso8601: '2026-10-23',
+      primaryTimezoneIana: 'Asia/Kolkata',
+      days: [
+        ItineraryDay(
+          dayNumber: 1,
+          dateIso8601: '2026-10-16',
+          title: 'Arrival in Srinagar',
+          description: 'Transfer to hotel and Shikara ride',
+          primaryTimezoneIana: 'Asia/Kolkata',
+          events: [
+            ItineraryEvent(
+              eventId: 'ev_flight',
+              eventType: EventType.transport,
+              title: 'Flight to Srinagar',
+              category: 'Transportation',
+              subCategory: 'Flight',
+              startIso8601: '2026-10-16T10:00:00',
+              endIso8601: '2026-10-16T12:00:00',
+              timezoneIana: 'Asia/Kolkata',
+            ),
+            ItineraryEvent(
+              eventId: 'ev_hotel',
+              eventType: EventType.lodging,
+              title: 'Check-in to Grand Palace',
+              category: 'Lodging',
+              subCategory: 'Hotel',
+              startIso8601: '2026-10-16T13:00:00',
+              endIso8601: '2026-10-16T14:00:00',
+              timezoneIana: 'Asia/Kolkata',
+            ),
+            ItineraryEvent(
+              eventId: 'ev_activity',
+              eventType: EventType.activity,
+              title: 'Dal Lake Shikara Ride',
+              category: 'Activity',
+              subCategory: 'Boating',
+              startIso8601: '2026-10-16T16:00:00',
+              endIso8601: '2026-10-16T18:00:00',
+              timezoneIana: 'Asia/Kolkata',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TravelerItineraryViewScreen(
+          di: testDi,
+          trip: multiEventTrip,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Verify Day title and formatted date
+    expect(find.text('Day 1: Arrival in Srinagar'), findsOneWidget);
+    expect(find.text('Fri, Oct 16'), findsOneWidget);
+
+    // Verify right-side category badge icons present (Flight, Hotel, Activity)
+    expect(find.byIcon(Icons.flight_takeoff_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.hotel_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.directions_walk_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);
+  });
+
+  testWidgets(
+      'DayScheduleScreen renders 2-column tabular index cards with odd card centered and 1-second glow on tap',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    const oddEventsTrip = TripPackage(
+      tripId: 'trip_odd_test',
+      title: 'Paris Holiday',
+      subtitle: 'Disneyland and sightseeing',
+      startDateIso8601: '2026-10-12',
+      endDateIso8601: '2026-10-14',
+      primaryTimezoneIana: 'Europe/Paris',
+      days: [
+        ItineraryDay(
+          dayNumber: 1,
+          dateIso8601: '2026-10-12',
+          title: 'Disneyland Adventure',
+          description: 'Full day magical adventure',
+          primaryTimezoneIana: 'Europe/Paris',
+          events: [
+            ItineraryEvent(
+              eventId: 'ev_disney_1',
+              eventType: EventType.activity,
+              title: 'Disneyland Paris Main Park',
+              category: 'Activity',
+              subCategory: 'Theme Park',
+              startIso8601: '2026-10-12T09:30:00',
+              endIso8601: '2026-10-12T13:00:00',
+              timezoneIana: 'Europe/Paris',
+              description: '**Ticket Policy**: Print ticket before arrival',
+            ),
+            ItineraryEvent(
+              eventId: 'ev_disney_2',
+              eventType: EventType.transport,
+              title: 'RER A Train to Marne-la-Vallee',
+              category: 'Transportation',
+              subCategory: 'Departure',
+              startIso8601: '2026-10-12T13:30:00',
+              endIso8601: '2026-10-12T14:30:00',
+              timezoneIana: 'Europe/Paris',
+              description: 'Stay on train until final stop',
+            ),
+            ItineraryEvent(
+              eventId: 'ev_disney_3',
+              eventType: EventType.note,
+              title: 'Use Disneyland App for Wait Times',
+              category: 'Info',
+              subCategory: 'App Guide',
+              startIso8601: '2026-10-12T15:00:00',
+              endIso8601: '2026-10-12T16:00:00',
+              timezoneIana: 'Europe/Paris',
+              description: 'Check live attraction waiting times',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TravelerItineraryViewScreen(
+          di: testDi,
+          trip: oddEventsTrip,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Tap Day card to open DayScheduleScreen
+    await tester.tap(find.text('Day 1: Disneyland Adventure'));
+    await tester.pumpAndSettle();
+
+    // Verify Day Schedule Screen header
+    expect(find.text('Day 1: Disneyland Adventure'), findsOneWidget);
+    expect(find.text('Mon, Oct 12'), findsOneWidget);
+
+    // Verify DAY OVERVIEW section header and count
+    expect(find.text('DAY OVERVIEW'), findsOneWidget);
+    expect(find.text('3 events'), findsOneWidget);
+
+    // Verify 3 index cards exist (all 3 event titles appear in both index card and event card)
+    expect(find.text('Disneyland Paris Main Park'), findsNWidgets(2));
+    expect(find.text('RER A Train to Marne-la-Vallee'), findsNWidgets(2));
+    expect(find.text('Use Disneyland App for Wait Times'), findsNWidgets(2));
+
+    // Verify the 3rd odd index card is inside a centered row
+    final centeredRows = find.byWidgetPredicate(
+      (w) => w is Row && w.mainAxisAlignment == MainAxisAlignment.center,
+    );
+    expect(centeredRows, findsWidgets);
+
+    // Tap the 2nd index card
+    final indexCard2 = find.ancestor(
+      of: find.text('RER A Train to Marne-la-Vallee').first,
+      matching: find.byType(InkWell),
+    );
+    await tester.tap(indexCard2.first);
+    await tester.pump();
+
+    // Verify AnimatedContainer exists and 1-second glow timer starts
+    await tester.pump(const Duration(milliseconds: 300));
+    // Advance beyond 1 second to verify glow timer finishes cleanly without exception
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+
+    // Verify Scroll to Top floating arrow button logic:
+    // Scroll down to make back-to-top button appear
+    await tester.drag(find.byType(ListView).first, const Offset(0, -500));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.arrow_upward_rounded), findsOneWidget);
+
+    // Tap back-to-top button
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded),
+        warnIfMissed: false);
+    await tester.pumpAndSettle();
   });
 }

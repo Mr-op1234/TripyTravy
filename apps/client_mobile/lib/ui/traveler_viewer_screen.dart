@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:tripytravy_core/tripytravy_core.dart';
 import '../di/mobile_di_container.dart';
 import 'widgets/trip_card_widget.dart';
+import 'day_schedule_screen.dart';
+export 'day_schedule_screen.dart';
 
 /// Primary controller for the Traveler viewer application.
 /// Manages loaded trip itinerary, timeline calculations, persistent checklist, and media resolution.
@@ -523,121 +525,13 @@ class _TravelerItineraryViewScreenState
   }
 
   void _openDayDetails(BuildContext context, ItineraryDay day) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.65,
-        minChildSize: 0.4,
-        maxChildSize: 0.92,
-        expand: false,
-        builder: (context, scrollController) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5FB),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.calendar_today_outlined,
-                          color: Color(0xFF4F46E5), size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Day ${day.dayNumber}: ${day.title}',
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          if (day.dateIso8601.isNotEmpty)
-                            Text(
-                              day.dateIso8601,
-                              style: const TextStyle(
-                                  fontSize: 12.5, color: Color(0xFF64748B)),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                if (day.description.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Text(
-                      day.description,
-                      style: const TextStyle(
-                          fontSize: 13, color: Color(0xFF334155), height: 1.35),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                const Text(
-                  'Events & Schedule',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: day.events.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No schedule events planned for this day yet.',
-                            style: TextStyle(color: Color(0xFF94A3B8)),
-                          ),
-                        )
-                      : ListView.separated(
-                          controller: scrollController,
-                          itemCount: day.events.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final ev = day.events[index];
-                            return _buildEventCard(context, ev);
-                          },
-                        ),
-                ),
-              ],
-            ),
-          );
-        },
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DayScheduleScreen(
+          di: widget.di,
+          trip: widget.trip,
+          day: day,
+        ),
       ),
     );
   }
@@ -1238,6 +1132,51 @@ class _TravelerItineraryViewScreenState
     );
   }
 
+  String _formatDayDate(String dateStr) {
+    if (dateStr.isEmpty) return '';
+    try {
+      DateTime dt;
+      if (dateStr.contains('-')) {
+        final parts = dateStr.split('-');
+        if (parts.length == 3) {
+          if (parts[0].length == 4) {
+            dt = DateTime.parse(dateStr);
+          } else if (parts[2].length == 4) {
+            dt = DateTime(
+                int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+          } else {
+            return dateStr;
+          }
+        } else {
+          dt = DateTime.parse(dateStr);
+        }
+      } else {
+        dt = DateTime.parse(dateStr);
+      }
+
+      const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ];
+      final weekday = weekdays[dt.weekday - 1];
+      final month = months[dt.month - 1];
+      return '$weekday, $month ${dt.day}';
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final trip = widget.trip;
@@ -1554,6 +1493,15 @@ class _TravelerItineraryViewScreenState
                     final dayTitle = day.title.toLowerCase().startsWith('day')
                         ? day.title
                         : 'Day ${day.dayNumber}: ${day.title}';
+                    final dateSubtitle = _formatDayDate(day.dateIso8601);
+
+                    // Collect unique category badge styles for this day (Image 3)
+                    final distinctCategoryStyles =
+                        <String, EventCategoryStyle>{};
+                    for (final ev in day.events) {
+                      final style = EventCategoryStyle.resolve(ev);
+                      distinctCategoryStyles.putIfAbsent(style.label, () => style);
+                    }
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -1578,7 +1526,7 @@ class _TravelerItineraryViewScreenState
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 15),
                             child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 // Calendar outline badge
                                 Container(
@@ -1608,6 +1556,17 @@ class _TravelerItineraryViewScreenState
                                           color: Color(0xFF0F172A),
                                         ),
                                       ),
+                                      if (dateSubtitle.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          dateSubtitle,
+                                          style: const TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ],
                                       if (day.description.isNotEmpty) ...[
                                         const SizedBox(height: 3),
                                         Text(
@@ -1623,13 +1582,36 @@ class _TravelerItineraryViewScreenState
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 8),
-                                  child: Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: Color(0xFF94A3B8),
-                                    size: 22,
-                                  ),
+                                // Right-side Event Category Badges Row + Chevron (Image 3)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ...distinctCategoryStyles.values.take(4).map(
+                                      (st) => Container(
+                                        margin: const EdgeInsets.only(right: 5),
+                                        width: 26,
+                                        height: 26,
+                                        decoration: BoxDecoration(
+                                          color: st.backgroundColor,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                              color: st.borderColor, width: 1),
+                                        ),
+                                        child: Center(
+                                          child: Icon(
+                                            st.icon,
+                                            size: 13,
+                                            color: st.primaryColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: Color(0xFF94A3B8),
+                                      size: 22,
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
