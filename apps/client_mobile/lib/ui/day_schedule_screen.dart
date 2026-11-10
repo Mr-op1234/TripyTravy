@@ -426,10 +426,12 @@ class _DaySchedulePageState extends State<_DaySchedulePage> {
                         ],
                       ),
                     ),
-                    IconButton(
+                    PopupMenuButton<String>(
                       tooltip: 'Day options',
                       icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF0F172A)),
-                      onPressed: () {},
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'open_map', child: Text('Open Map')),
+                      ],
                     ),
                   ],
                 ),
