@@ -426,6 +426,11 @@ class _DaySchedulePageState extends State<_DaySchedulePage> {
                         ],
                       ),
                     ),
+                    IconButton(
+                      tooltip: 'Day options',
+                      icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF0F172A)),
+                      onPressed: () {},
+                    ),
                   ],
                 ),
               ),
