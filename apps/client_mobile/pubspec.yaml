@@ -14,6 +14,7 @@ dependencies:
   path_provider: ^2.1.6
   tripytravy_core:
     path: ../../packages/tripytravy_core
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   cross_file: ^0.3.3

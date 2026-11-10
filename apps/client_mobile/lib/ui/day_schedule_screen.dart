@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'day_map_screen.dart';
 import 'widgets/event_description.dart';
 import 'widgets/photo_gallery_dialog.dart';
 import 'dart:async';
@@ -427,6 +428,11 @@ class _DaySchedulePageState extends State<_DaySchedulePage> {
                       ),
                     ),
                     PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'open_map') {
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => DayMapScreen(day: day)));
+                        }
+                      },
                       tooltip: 'Day options',
                       icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF0F172A)),
                       itemBuilder: (_) => const [
