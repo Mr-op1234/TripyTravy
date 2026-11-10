@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'day_map_screen.dart';
+import 'day_map_links.dart';
 import 'widgets/event_description.dart';
 import 'widgets/photo_gallery_dialog.dart';
 import 'dart:async';
@@ -430,7 +430,7 @@ class _DaySchedulePageState extends State<_DaySchedulePage> {
                     PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'open_map') {
-                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => DayMapScreen(day: day)));
+                          _openDayMap(context, day);
                         }
                       },
                       tooltip: 'Day options',
@@ -1069,6 +1069,19 @@ class _DaySchedulePageState extends State<_DaySchedulePage> {
         }).toList(),
       ),
     );
+  }
+
+  Future<void> _openDayMap(BuildContext context, ItineraryDay day) async {
+    final stops = dayMapStops(day);
+    if (stops.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No map locations are available for this day.')));
+      return;
+    }
+    try {
+      await const MethodChannel('com.tripytravy.client_mobile/file_intent').invokeMethod('openUrl', {'url': dayMapUrl(stops, 'driving').toString()});
+    } catch (_) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open Google Maps.')));
+    }
   }
 
   Future<void> _openMapLocation(BuildContext context, String rawUrl,

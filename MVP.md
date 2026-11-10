@@ -1,5 +1,9 @@
 # TripyTravy — Hexagonal MVP Specification & Build Guidebook
 
+## Current MVP Map Scope (2026-11-10)
+
+Maps use clickable Google Maps links only. Location cards open their saved location; the day menu opens a Google Maps route. Embedded maps, OSM/MapLibre integration, offline map downloads, and bundled routing engines are outside the MVP scope. The broader mapping designs below are historical proposals, not current MVP requirements.
+
 ## 1. Hexagonal Architecture Overview (Ports & Adapters)
 
 TripyTravy's MVP is structured around a strict **Hexagonal (Ports & Adapters) Architecture** so that **Core Trip Business Logic** remains completely isolated from **Variable Attachment Logics**, cryptographic runtimes, database engines, and UI frameworks.

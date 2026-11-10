@@ -1,4 +1,4 @@
-import 'package:client_mobile/ui/day_map_screen.dart';
+import 'package:client_mobile/ui/day_map_links.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tripytravy_core/tripytravy_core.dart';
 
@@ -30,13 +30,15 @@ void main() {
     final stops = dayMapStops(day);
     expect(stops, hasLength(4));
     final url = dayMapUrl(stops, 'walking');
-    expect(url.queryParameters['saddr'], '33.99,74.77');
-    expect(url.queryParameters['daddr'], 'Hotel & Spa to:Lake to:Hotel & Spa');
-    expect(url.queryParameters['dirflg'], 'w');
-    final official = dayMapUrl(stops, 'bicycling', apiKey: 'test-key');
+    expect(url.queryParameters['origin'], '33.99,74.77');
+    expect(url.queryParameters['destination'], 'Hotel & Spa');
+    expect(url.queryParameters['waypoints'], 'Hotel & Spa|Lake');
+    expect(url.queryParameters['travelmode'], 'walking');
+    final official = dayMapUrl(stops, 'bicycling');
     expect(official.queryParameters['waypoints'], 'Hotel & Spa|Lake');
-    expect(official.queryParameters['mode'], 'bicycling');
-    expect(dayMapUrl(stops.take(1).toList(), 'driving').queryParameters['q'],
+    expect(official.queryParameters['travelmode'], 'bicycling');
+    expect(
+        dayMapUrl(stops.take(1).toList(), 'driving').queryParameters['query'],
         '33.99,74.77');
     expect(dayMapStops(day.copyWith(events: [])), isEmpty);
   });
