@@ -1,0 +1,233 @@
+syntax = "proto3";
+
+package tripytravy.v1;
+
+enum AttachmentCategory {
+  ATTACHMENT_CATEGORY_UNSPECIFIED = 0;
+  BOARDING_PASS = 1;
+  HOTEL_VOUCHER = 2;
+  ACTIVITY_TICKET = 3;
+  PHOTO_GALLERY = 4;
+  DINING_MENU = 5;
+  OFFLINE_MAP_SLICE = 6;
+  GENERAL_ADVISORY = 7;
+}
+
+enum AttachmentVisibility {
+  ATTACHMENT_VISIBILITY_UNSPECIFIED = 0;
+  PRIVATE_BOOKING = 1;
+  TEMPLATE_SAFE = 2;
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  FLIGHT = 1;
+  LODGING = 2;
+  TRANSPORT = 3;
+  ACTIVITY = 4;
+  MEAL = 5;
+  NOTE = 6;
+}
+
+enum TransitMode {
+  TRANSIT_MODE_UNSPECIFIED = 0;
+  WALK = 1;
+  DRIVE = 2;
+  RAIL = 3;
+  PUBLIC_TRANSIT = 4;
+  BOAT_FERRY = 5;
+  FLIGHT_LEG = 6;
+  CYCLE = 7;
+}
+
+enum NoteSeverity {
+  NOTE_SEVERITY_UNSPECIFIED = 0;
+  INFO = 1;
+  TIP = 2;
+  WARNING = 3;
+  CRITICAL = 4;
+}
+
+message GeoCoordinate {
+  double latitude = 1;
+  double longitude = 2;
+}
+
+message AttachmentDescriptor {
+  string asset_id = 1;
+  string filename = 2;
+  string mime_type = 3;
+  AttachmentCategory category = 4;
+  AttachmentVisibility visibility = 5;
+  uint64 byte_offset = 6;
+  uint64 byte_size = 7;
+  string sha256_checksum = 8;
+}
+
+message FlightDetails {
+  string airline_name = 1;
+  string flight_number = 2;
+  string departure_iata = 3;
+  string arrival_iata = 4;
+  string departure_timezone_iana = 5;
+  string arrival_timezone_iana = 6;
+  string terminal = 7;
+  string gate = 8;
+  string seat_number = 9;
+  string baggage_allowance = 10;
+  string pnr_confirmation_code = 11;
+}
+
+message LodgingDetails {
+  string property_name = 1;
+  string address = 2;
+  GeoCoordinate coordinates = 3;
+  string room_type = 4;
+  string meal_plan = 5;
+  string confirmation_number = 6;
+  string contact_phone = 7;
+  string contact_email = 8;
+}
+
+message TransportDetails {
+  TransitMode mode = 1;
+  string carrier_name = 2;
+  string vehicle_number = 3;
+  string pickup_location = 4;
+  string dropoff_location = 5;
+  string coach_seat_number = 6;
+  string pickup_instructions = 7;
+  string confirmation_code = 8;
+}
+
+message ActivityDetails {
+  string meeting_point_address = 1;
+  GeoCoordinate coordinates = 2;
+  uint32 duration_minutes = 3;
+  string operator_name = 4;
+  string operator_phone = 5;
+  string dress_code_notes = 6;
+  string confirmation_code = 7;
+}
+
+message MealDetails {
+  string restaurant_name = 1;
+  string address = 2;
+  GeoCoordinate coordinates = 3;
+  string cuisine_type = 4;
+  string dress_code = 5;
+  string dietary_notes = 6;
+  string confirmation_code = 7;
+  string contact_phone = 8;
+}
+
+message ChecklistItem {
+  string item_id = 1;
+  string label = 2;
+  bool is_checked_default = 3;
+}
+
+message NoteDetails {
+  NoteSeverity severity = 1;
+  string category_label = 2;
+  string markdown_body = 3;
+  repeated ChecklistItem checklist_items = 4;
+}
+
+message ItineraryEvent {
+  string event_id = 1;
+  EventType event_type = 2;
+  string title = 3;
+  string start_iso8601 = 4;
+  string end_iso8601 = 5;
+  string timezone_iana = 6;
+  repeated string attachment_asset_ids = 7;
+  oneof details {
+    FlightDetails flight = 8;
+    LodgingDetails lodging = 9;
+    TransportDetails transport = 10;
+    ActivityDetails activity = 11;
+    MealDetails meal = 12;
+    NoteDetails note = 13;
+  }
+}
+
+message RoutePath {
+  string route_id = 1;
+  string from_event_id = 2;
+  string to_event_id = 3;
+  TransitMode transit_mode = 4;
+  double distance_km = 5;
+  uint32 duration_minutes = 6;
+  string encoded_polyline = 7;
+  string navigation_tips = 8;
+}
+
+message GeofenceArea {
+  string area_id = 1;
+  string name = 2;
+  string description = 3;
+  string fill_hex_color = 4;
+  double opacity = 5;
+  repeated GeoCoordinate polygon_ring = 6;
+}
+
+message AttractionPoi {
+  string poi_id = 1;
+  string name = 2;
+  string category = 3;
+  GeoCoordinate coordinates = 4;
+  string opening_hours = 5;
+  uint32 recommended_duration_minutes = 6;
+  double distance_from_lodging_km = 7;
+  string creator_notes = 8;
+}
+
+message ItineraryDay {
+  uint32 day_number = 1;
+  string date_iso8601 = 2;
+  string title = 3;
+  string primary_timezone_iana = 4;
+  repeated ItineraryEvent events = 5;
+  repeated RoutePath routes = 6;
+  repeated GeofenceArea geofences = 7;
+  repeated AttractionPoi attractions = 8;
+}
+
+message TravelerProfile {
+  string traveler_id = 1;
+  string full_name = 2;
+  string email = 3;
+  string phone = 4;
+  string passport_expiry_iso8601 = 5;
+  string dietary_preferences = 6;
+  string emergency_contact_name = 7;
+  string emergency_contact_phone = 8;
+}
+
+message OfflineMapSlice {
+  string slice_asset_id = 1;
+  double min_lat = 2;
+  double min_lon = 3;
+  double max_lat = 4;
+  double max_lon = 5;
+  uint32 min_zoom = 6;
+  uint32 max_zoom = 7;
+}
+
+message TripPackage {
+  string trip_id = 1;
+  string title = 2;
+  string subtitle = 3;
+  repeated string destination_tags = 4;
+  string start_date_iso8601 = 5;
+  string end_date_iso8601 = 6;
+  string primary_timezone_iana = 7;
+  string currency_code_iso4217 = 8;
+  string language_bcp47 = 9;
+  bool is_template = 10;
+  repeated TravelerProfile travelers = 11;
+  repeated ItineraryDay days = 12;
+  repeated AttachmentDescriptor all_assets = 13;
+  OfflineMapSlice offline_map_slice = 14;
+}
