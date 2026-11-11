@@ -1331,8 +1331,8 @@ class ItineraryDatabase {
     return maps.map((m) => TripEventItem.fromMap(m)).toList();
   }
 
-  Future<int> insertEvent(TripEventItem event) async {
-    final db = await database;
+  Future<int> insertEvent(TripEventItem event, {Transaction? transaction}) async {
+    final db = transaction ?? await database;
     final res = await db.insert('trip_events', event.toMap());
     try {
       for (int i = 0; i < event.notes.length; i++) {
@@ -1349,7 +1349,9 @@ class ItineraryDatabase {
           'sort_order': i,
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (transaction != null) rethrow;
+    }
     return res;
   }
 
@@ -1435,12 +1437,14 @@ class ItineraryDatabase {
     return docs;
   }
 
-  Future<int> insertDocument(TripDocumentItem doc) async {
+  Future<int> insertDocument(TripDocumentItem doc, {Transaction? transaction}) async {
     final db = await database;
+    final executor = transaction ?? db;
     int res = 0;
     try {
-      res = await db.insert('trip_documents', doc.toMap());
+      res = await executor.insert('trip_documents', doc.toMap());
     } catch (_) {
+      if (transaction != null) rethrow;
       await _ensureDocumentColumns(db);
       res = await db.insert('trip_documents', doc.toMap());
     }
@@ -1448,7 +1452,7 @@ class ItineraryDatabase {
     try {
       for (int i = 0; i < doc.attachments.length; i++) {
         final att = doc.attachments[i];
-        await db.insert('document_attachments', {
+        await executor.insert('document_attachments', {
           'document_id': doc.id,
           'file_name': att['name'] ?? '',
           'file_size': att['size'] ?? '',
@@ -1457,7 +1461,7 @@ class ItineraryDatabase {
         });
       }
       if (doc.hasLocation) {
-        await db.insert('trip_locations', {
+        await executor.insert('trip_locations', {
           'itinerary_id': doc.itineraryId,
           'document_id': doc.id,
           'event_id': doc.eventId,
@@ -1467,7 +1471,9 @@ class ItineraryDatabase {
           'map_url': doc.mapUrl,
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (transaction != null) rethrow;
+    }
 
     return res;
   }

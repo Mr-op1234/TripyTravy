@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../data/itinerary_database.dart';
 import '../data/itinerary_file_manager.dart';
+import '../data/itinerary_tt_importer.dart';
 import 'exported_itineraries_screen.dart';
 import 'trip_editor_dialog.dart';
 import 'trip_detail_screen.dart';
@@ -22,6 +24,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late final ScrollController _scrollController;
   List<DestinationItem> _destinations = [];
   bool _isLoading = true;
+  bool _isImporting = false;
 
   @override
   void initState() {
@@ -45,6 +48,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _importItinerary() async {
+    setState(() => _isImporting = true);
+    try {
+      final files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['tt'],
+        dialogTitle: 'Select a TripyTravy itinerary',
+      );
+      if (!mounted || files.isEmpty) return;
+      final file = files.single;
+      if (!file.name.toLowerCase().endsWith('.tt')) {
+        throw const FormatException('Select a .tt itinerary file.');
+      }
+      final bytes = await file.readAsBytes();
+      final importer = ItineraryTtImporter();
+      String? pin;
+      while (mounted) {
+        try {
+          final trip = await importer.import(bytes, pin: pin);
+          await _loadItineraries();
+          if (mounted) _showImportMessage('Imported "${trip.title}".');
+          return;
+        } on StateError catch (error) {
+          if (error.message != 'PIN_REQUIRED' &&
+              !(pin != null && error.message == 'AES_GCM_AUTH_FAILED')) {
+            rethrow;
+          }
+          if (!mounted) return;
+          pin = await _requestImportPin(incorrect: pin != null);
+          if (pin == null) return;
+        }
+      }
+    } on FormatException catch (error) {
+      if (mounted) _showImportMessage('Could not import itinerary: ${error.message}');
+    } catch (_) {
+      if (mounted) _showImportMessage('Could not import the selected itinerary.');
+    } finally {
+      if (mounted) setState(() => _isImporting = false);
+    }
+  }
+
+  void _showImportMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<String?> _requestImportPin({required bool incorrect}) {
+    var pin = '';
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enter itinerary PIN'),
+        content: TextField(
+          autofocus: true,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: 'PIN',
+            errorText: incorrect ? 'Incorrect PIN' : null,
+          ),
+          onChanged: (value) => pin = value,
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, pin),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -480,24 +558,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (!compact) Expanded(child: search),
         const Spacer(),
         // Right: + Add More Trip button
-        ElevatedButton.icon(
-          onPressed: () => _showTripEditorDialog(),
-          icon: const Icon(Icons.add, size: 18, color: Colors.white),
-          label: const Text(
-            'Add More Trip',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
+        MenuAnchor(
+          menuChildren: [
+            MenuItemButton(
+              leadingIcon: const Icon(Icons.add),
+              onPressed: () => _showTripEditorDialog(),
+              child: const Text('Create New Trip'),
             ),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0066FF),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
+            MenuItemButton(
+              leadingIcon: const Icon(Icons.file_open_outlined),
+              onPressed: _importItinerary,
+              child: const Text('Import Itinerary'),
             ),
-            elevation: 0,
+          ],
+          builder: (context, controller, child) => ElevatedButton.icon(
+            onPressed: _isImporting
+                ? null
+                : () => controller.isOpen ? controller.close() : controller.open(),
+            icon: const Icon(Icons.add, size: 18, color: Colors.white),
+            label: const Text(
+              'Add More Trip',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0066FF),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              elevation: 0,
+            ),
           ),
         ),
         const SizedBox(width: 16),

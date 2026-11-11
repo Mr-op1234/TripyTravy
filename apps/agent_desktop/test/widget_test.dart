@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:agent_desktop/data/itinerary_database.dart';
+import 'package:agent_desktop/data/itinerary_tt_importer.dart';
+import 'package:agent_desktop/di/hexagonal_di_container.dart';
 import 'package:agent_desktop/ui/dashboard_screen.dart';
 import 'package:agent_desktop/ui/trip_detail_screen.dart';
 import 'package:agent_desktop/ui/dialogs/documents_dialog.dart';
@@ -14,6 +16,7 @@ import 'package:agent_desktop/ui/widgets/smooth_scroll.dart';
 import 'package:agent_desktop/ui/widgets/rich_description_editor.dart';
 import 'package:agent_desktop/data/google_maps_helper.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:tripytravy_core/tripytravy_core.dart';
 
 void main() {
   setUpAll(() {
@@ -188,6 +191,63 @@ void main() {
     tearDown(() async {
       await testDb.close();
       ItineraryDatabase.setDatabase(null);
+    });
+
+    test('Imports a .tt file as an independent editable itinerary', () async {
+      const document = TripDocumentRecord(
+        id: 'voucher',
+        title: 'Voucher',
+        fileName: 'voucher.pdf',
+        filePath: r'C:\sender\voucher.pdf',
+        base64Data: 'JVBERi0xLjQ=',
+      );
+      final bytes = await HexagonalDiContainer().exportTripUseCase.execute(
+        userPin: '2468',
+        trip: const TripPackage(
+          tripId: '42',
+          title: 'Weekend trip',
+          primaryTimezoneIana: 'UTC',
+          startDateIso8601: '2026-11-14',
+          endDateIso8601: '2026-11-14',
+          days: [
+            ItineraryDay(
+              dayNumber: 1,
+              dateIso8601: '2026-11-14',
+              title: 'Arrival',
+              primaryTimezoneIana: 'UTC',
+              events: [
+                ItineraryEvent(
+                  eventId: 'original-event',
+                  eventType: EventType.activity,
+                  title: 'Museum',
+                  timezoneIana: 'UTC',
+                  startIso8601: '2026-11-14T10:30:00',
+                  endIso8601: '2026-11-14T11:30:00',
+                  documents: [document],
+                  photos: ['data:image/png;base64,AQID'],
+                ),
+              ],
+            ),
+          ],
+          documents: [document],
+        ),
+      );
+      final database = ItineraryDatabase.instance;
+      final importer = ItineraryTtImporter();
+      await expectLater(importer.import(bytes), throwsStateError);
+      expect(await database.getAllItineraries(), isEmpty);
+
+      final first = await importer.import(bytes, pin: '2468');
+      final second = await importer.import(bytes, pin: '2468');
+      expect(second.id, isNot(first.id));
+      expect((await database.getItineraryById(first.id))?.title, 'Weekend trip');
+      final day = (await database.getDaysForItinerary(first.id)).single;
+      expect(day.title, 'Arrival');
+      final event = (await database.getEventsForDay(first.id, day.id)).single;
+      expect(event.title, 'Museum');
+      expect(event.startTime, '10:30');
+      expect(await File(event.photos.single).readAsBytes(), [1, 2, 3]);
+      expect(await File(event.attachments.single['path']!).readAsString(), '%PDF-1.4');
     });
 
     test('Manages Itinerary Days with foreign keys and cascade delete',
@@ -673,6 +733,9 @@ void main() {
 
       // Tap + Add More Trip
       await tester.tap(find.text('Add More Trip'));
+      await tester.pumpAndSettle();
+      expect(find.text('Import Itinerary'), findsOneWidget);
+      await tester.tap(find.text('Create New Trip'));
       await tester.pumpAndSettle();
 
       // Verify all required fields are present and banner is empty
