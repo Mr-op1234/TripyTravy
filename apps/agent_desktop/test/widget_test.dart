@@ -571,6 +571,46 @@ void main() {
   });
 
   group('Dashboard Widget Smoke Tests', () {
+    testWidgets('Itinerary cards reflow as the dashboard is resized',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 480));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(MaterialApp(
+        home: DashboardScreen(initialDestinations: [
+          for (var id = 1; id <= 3; id++)
+            DestinationItem(
+              id: id,
+              title: 'Trip $id',
+              subtitle: '',
+              duration: '',
+              dateRange: '',
+              imagePath: '',
+            ),
+        ]),
+      ));
+
+      Finder card(int id) => find.byKey(ValueKey(id));
+      Offset position(int id) => tester.getTopLeft(card(id));
+
+      expect(position(2).dy, position(1).dy);
+      expect(position(3).dx, position(1).dx);
+      expect(position(3).dy, greaterThan(position(1).dy));
+      expect(card(3).hitTestable(), findsNothing);
+      await tester.ensureVisible(card(3));
+      await tester.pumpAndSettle();
+      expect(card(3).hitTestable(), findsOneWidget);
+
+      await tester.binding.setSurfaceSize(const Size(1200, 480));
+      await tester.pumpAndSettle();
+      expect(position(3).dy, position(1).dy);
+      expect(position(3).dx, greaterThan(position(2).dx));
+
+      await tester.binding.setSurfaceSize(const Size(520, 480));
+      await tester.pumpAndSettle();
+      expect(position(2).dx, position(1).dx);
+      expect(position(2).dy, greaterThan(position(1).dy));
+    });
+
     testWidgets('Dashboard renders header, search bar, and itinerary cards',
         (WidgetTester tester) async {
       final sampleItems = [

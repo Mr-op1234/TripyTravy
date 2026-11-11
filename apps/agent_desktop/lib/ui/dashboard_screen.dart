@@ -248,7 +248,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  RepaintBoundary(child: _buildTopHeader()),
+                  RepaintBoundary(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) =>
+                          _buildTopHeader(compact: constraints.maxWidth < 640),
+                    ),
+                  ),
                   const SizedBox(height: 28),
                   RepaintBoundary(child: _buildCardsSection()),
                 ],
@@ -397,139 +402,140 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-  Widget _buildTopHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+  Widget _buildTopHeader({required bool compact}) {
+    final search = Container(
+      height: 44,
+      constraints: const BoxConstraints(maxWidth: 580),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F4FA),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          // Hamburger Icon at top left corner
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              key: const Key('dashboard_hamburger_button'),
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => _scaffoldKey.currentState?.openDrawer(),
-              child: Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
-                ),
-                child: const Icon(
-                  Icons.menu_rounded,
-                  color: Color(0xFF1E293B),
-                  size: 24,
-                ),
-              ),
-            ),
+          const Icon(
+            Icons.search,
+            color: Color(0xFF7A8B9E),
+            size: 20,
           ),
-          const SizedBox(width: 14), // Shift the logo a little bit
-
-          // Left: TripyTravy Official White-Themed Brand Logo
-          Image.asset(
-            'assets/images/TripyTravyWhiteTheme.png',
-            height: 48,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(
-              Icons.travel_explore_rounded,
-              color: Color(0xFF0066FF),
-              size: 38,
-            ),
-          ),
-          const SizedBox(width: 28),
-
-          // Center-Left: Search Bar
+          const SizedBox(width: 10),
           Expanded(
-            child: Container(
-              height: 44,
-              constraints: const BoxConstraints(maxWidth: 580),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FA),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.search,
-                    color: Color(0xFF7A8B9E),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B)),
-                      decoration: const InputDecoration(
-                        hintText: 'search Itinerary Name.',
-                        hintStyle: TextStyle(
-                          color: Color(0xFF7A8B9E),
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal,
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const Spacer(),
-
-          // Right: + Add More Trip button
-          ElevatedButton.icon(
-            onPressed: () => _showTripEditorDialog(),
-            icon: const Icon(Icons.add, size: 18, color: Colors.white),
-            label: const Text(
-              'Add More Trip',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0066FF),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-              elevation: 0,
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Rightmost: Settings Icon
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(24),
-              onTap: _showSettingsDialog,
-              child: Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B)),
+              decoration: const InputDecoration(
+                hintText: 'search Itinerary Name.',
+                hintStyle: TextStyle(
+                  color: Color(0xFF7A8B9E),
+                  fontSize: 14,
+                  fontWeight: FontWeight.normal,
                 ),
-                child: const Icon(
-                  Icons.settings_outlined,
-                  color: Color(0xFF5A6B82),
-                  size: 22,
-                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
               ),
             ),
           ),
         ],
       ),
+    );
+    final controls = Row(
+      children: [
+        // Hamburger Icon at top left corner
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: const Key('dashboard_hamburger_button'),
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => _scaffoldKey.currentState?.openDrawer(),
+            child: Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+              ),
+              child: const Icon(
+                Icons.menu_rounded,
+                color: Color(0xFF1E293B),
+                size: 24,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 14), // Shift the logo a little bit
+        // Left: TripyTravy Official White-Themed Brand Logo
+        Image.asset(
+          'assets/images/TripyTravyWhiteTheme.png',
+          height: 48,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Icon(
+            Icons.travel_explore_rounded,
+            color: Color(0xFF0066FF),
+            size: 38,
+          ),
+        ),
+        if (!compact) const SizedBox(width: 28),
+        if (!compact) Expanded(child: search),
+        const Spacer(),
+        // Right: + Add More Trip button
+        ElevatedButton.icon(
+          onPressed: () => _showTripEditorDialog(),
+          icon: const Icon(Icons.add, size: 18, color: Colors.white),
+          label: const Text(
+            'Add More Trip',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF0066FF),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            elevation: 0,
+          ),
+        ),
+        const SizedBox(width: 16),
+        // Rightmost: Settings Icon
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: _showSettingsDialog,
+            child: Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+              ),
+              child: const Icon(
+                Icons.settings_outlined,
+                color: Color(0xFF5A6B82),
+                size: 22,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 16 : 32,
+        vertical: 20,
+      ),
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [controls, const SizedBox(height: 12), search],
+            )
+          : controls,
     );
   }
 
@@ -571,29 +577,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SizedBox(
-            height: 250,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: _destinations.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 20),
-              itemBuilder: (context, index) {
-                final item = _destinations[index];
-                return ItineraryCard(
-                  item: item,
-                  onTap: () => _openTripDetail(item),
-                  onDelete: () => _showDeleteConfirmationDialog(item),
-                  onEdit: () => _showTripEditorDialog(itemToEdit: item),
-                );
-              },
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
+      child: Wrap(
+        spacing: 20,
+        runSpacing: 20,
+        children: [
+          for (final item in _destinations)
+            ItineraryCard(
+              key: ValueKey(item.id),
+              item: item,
+              onTap: () => _openTripDetail(item),
+              onDelete: () => _showDeleteConfirmationDialog(item),
+              onEdit: () => _showTripEditorDialog(itemToEdit: item),
             ),
-          );
-        },
+        ],
       ),
     );
   }
@@ -643,8 +641,8 @@ class _ItineraryCardState extends State<ItineraryCard> {
         child: AnimatedContainer(
           duration: animationDuration,
           curve: animationCurve,
-          width: _isHovered ? 350 : 330,
-          height: 220,
+          width: 330,
+          height: 250,
           transform: Matrix4.translationValues(0, _isHovered ? -6 : 0, 0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
