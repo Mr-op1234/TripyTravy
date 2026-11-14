@@ -769,7 +769,7 @@ class ItineraryDatabase {
 
     final db = await openDatabase(
       dbPath,
-      version: 6,
+      version: 7,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON;');
       },
@@ -803,6 +803,11 @@ class ItineraryDatabase {
         }
         if (oldVersion < 6) {
           await _createEventAndDocTables(db);
+        }
+        if (oldVersion < 7) {
+          await db.execute('ALTER TABLE itineraries ADD COLUMN export_id TEXT');
+          await db.execute(
+              'ALTER TABLE itineraries ADD COLUMN export_revision INTEGER NOT NULL DEFAULT 0');
         }
       },
     );
@@ -1023,7 +1028,9 @@ class ItineraryDatabase {
         start_date TEXT,
         end_date TEXT,
         tagline TEXT,
-        description TEXT
+        description TEXT,
+        export_id TEXT,
+        export_revision INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -1043,6 +1050,31 @@ class ItineraryDatabase {
       return DestinationItem.fromMap(maps.first);
     }
     return null;
+  }
+
+  // Allocate the revision before compiling so concurrent exports have distinct
+  // revision numbers. A failed export can leave a gap in the sequence.
+  Future<({String id, int revision})> reserveExportRevision(int id) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final count = await txn.rawUpdate('''
+        UPDATE itineraries
+        SET export_id = COALESCE(export_id, 'tt_' || lower(hex(randomblob(16)))),
+            export_revision = export_revision + 1
+        WHERE id = ?
+      ''', [id]);
+      if (count == 0) throw StateError('Itinerary no longer exists.');
+      final row = (await txn.query(
+        'itineraries',
+        columns: ['export_id', 'export_revision'],
+        where: 'id = ?',
+        whereArgs: [id],
+      )).single;
+      return (
+        id: row['export_id'] as String,
+        revision: row['export_revision'] as int,
+      );
+    });
   }
 
   static DateTime? parseFlexibleDate(String? raw) {

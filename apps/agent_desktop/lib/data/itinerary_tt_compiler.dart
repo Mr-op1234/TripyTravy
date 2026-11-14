@@ -16,6 +16,7 @@ class ItineraryTtCompiler {
     String? userPin,
     bool isTemplate = false,
     HexagonalDiContainer? diContainer,
+    ({String id, int revision})? exportIdentity,
   }) async {
     var tripPackage = toTripPackage(
       trip: trip,
@@ -25,6 +26,13 @@ class ItineraryTtCompiler {
       isTemplate: isTemplate,
     );
 
+    if (exportIdentity != null) {
+      tripPackage = tripPackage.copyWith(
+        tripId: exportIdentity.id,
+        revision: exportIdentity.revision,
+        legacyTripId: trip.id.toString(),
+      );
+    }
     tripPackage = tripPackage.copyWith(bannerImage: await _embedBanner(trip.imagePath));
 
     final di = diContainer ?? HexagonalDiContainer();

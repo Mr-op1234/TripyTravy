@@ -325,11 +325,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     );
 
     try {
+      final exportIdentity = await ItineraryDatabase.instance
+          .reserveExportRevision(_currentTrip.id);
       final bytes = await ItineraryTtCompiler.compile(
         trip: _currentTrip,
         days: _days,
         events: _events,
         documents: _documents,
+        exportIdentity: exportIdentity,
       );
 
       final defaultFileName = ItineraryFileManager.generateTtFileName(_currentTrip.title);

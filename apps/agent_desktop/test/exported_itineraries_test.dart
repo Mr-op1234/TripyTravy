@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agent_desktop/data/itinerary_database.dart';
 import 'package:agent_desktop/data/itinerary_file_manager.dart';
@@ -323,6 +324,15 @@ void main() {
 
       bool savePickerCalled = false;
       bool explorerOpened = false;
+      TripPackage? exported;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+      messenger.setMockMethodCallHandler(pathProvider, (_) async => tempDir.path);
+      addTearDown(() async {
+        await ItineraryDatabase.instance.close();
+        messenger.setMockMethodCallHandler(pathProvider, null);
+      });
 
       TripDetailScreen.saveFilePickerOverride = ({
         required String fileName,
@@ -333,6 +343,9 @@ void main() {
         List<String>? allowedExtensions,
       }) async {
         savePickerCalled = true;
+        final payload = await const TtrvContainerCipherAdapter()
+            .unpackContainer(containerBytes: bytes);
+        exported = const ProtobufTripMapper().fromWireBytes(payload.protobufBytes);
         return Uri.file('${tempDir.path}/Vietnam/$fileName');
       };
 
@@ -345,17 +358,18 @@ void main() {
         ItineraryFileManager.openExplorerOverride = null;
       });
 
-      const sampleTrip = DestinationItem(
-        id: 2,
-        title: 'Vietnam',
-        subtitle: 'Good Trips, Brighter Stories',
-        duration: '10 Days',
-        dateRange: 'Nov 1 - 10, 2026',
-        imagePath: '',
-      );
+      final sampleTrip = (await tester.runAsync(
+        () => ItineraryDatabase.instance.insertItinerary(
+          title: 'Vietnam',
+          subtitle: 'Good Trips, Brighter Stories',
+          duration: '10 Days',
+          dateRange: 'Nov 1 - 10, 2026',
+          imagePath: '',
+        ),
+      ))!;
 
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: TripDetailScreen(
             item: sampleTrip,
             initialDays: [],
@@ -387,7 +401,13 @@ void main() {
 
       // 5. Tap "Export to .tt file"
       await tester.tap(find.text('Export to .tt file'));
-      await tester.pump();
+      final timeout = Stopwatch()..start();
+      while (!explorerOpened && timeout.elapsed < const Duration(seconds: 5)) {
+        await tester.pump();
+        await tester.runAsync(() => Future<void>.delayed(
+              const Duration(milliseconds: 10),
+            ));
+      }
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -395,6 +415,13 @@ void main() {
       expect(savePickerCalled, isTrue);
       expect(explorerOpened, isTrue);
       expect(find.byType(SnackBar), findsOneWidget);
+      expect(exported?.tripId, matches(r'^tt_[0-9a-f]{32}$'));
+      expect(exported?.revision, 1);
+      expect(exported?.legacyTripId, sampleTrip.id.toString());
+      final next = await tester.runAsync(() => ItineraryDatabase.instance
+          .reserveExportRevision(sampleTrip.id));
+      expect(next?.id, exported?.tripId);
+      expect(next?.revision, 2);
     });
   });
 }

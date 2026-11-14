@@ -5,7 +5,6 @@ import '../../../domain/entities/trip_package.dart';
 import '../../../domain/ports/outbound_ports.dart';
 
 /// Production-ready persistent trip repository storing trips as JSON files on disk.
-/// Thread-safe and atomic across all platforms (Android, iOS, Desktop).
 class FileTripRepositoryAdapter implements TripRepositoryPort {
   final Directory baseDirectory;
   late final Directory _tripsDir;
@@ -29,15 +28,7 @@ class FileTripRepositoryAdapter implements TripRepositoryPort {
   @override
   Future<void> saveTrip(TripPackage trip) async {
     final file = _getTripFile(trip.tripId);
-    final tempFile = File('${file.path}.tmp');
-
-    final jsonStr = jsonEncode(trip.toJson());
-    await tempFile.writeAsString(jsonStr, flush: true);
-
-    if (await file.exists()) {
-      await file.delete();
-    }
-    await tempFile.rename(file.path);
+    await _replaceFile(file, jsonEncode(trip.toJson()));
 
     // If there is no active trip set, make this newly saved trip active
     final currentActive = await getActiveTripId();
@@ -116,11 +107,18 @@ class FileTripRepositoryAdapter implements TripRepositoryPort {
 
   @override
   Future<void> setActiveTripId(String tripId) async {
-    final temp = File('${_activeTripFile.path}.tmp');
-    await temp.writeAsString(tripId.trim(), flush: true);
-    if (await _activeTripFile.exists()) {
-      await _activeTripFile.delete();
+    await _replaceFile(_activeTripFile, tripId.trim());
+  }
+
+  Future<void> _replaceFile(File file, String contents) async {
+    final staging = await baseDirectory.createTemp('.trip_write_');
+    final temp = File(p.join(staging.path, 'data'));
+    try {
+      await temp.writeAsString(contents, flush: true);
+      await temp.rename(file.path);
+    } finally {
+      if (await temp.exists()) await temp.delete();
+      await staging.delete();
     }
-    await temp.rename(_activeTripFile.path);
   }
 }

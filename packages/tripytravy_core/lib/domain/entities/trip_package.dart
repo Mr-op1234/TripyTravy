@@ -171,6 +171,8 @@ class ItineraryDay {
 
 class TripPackage {
   final String tripId;
+  final int revision;
+  final String? legacyTripId;
   final String title;
   final String subtitle;
   final String bannerImage;
@@ -190,6 +192,8 @@ class TripPackage {
 
   const TripPackage({
     required this.tripId,
+    this.revision = 0,
+    this.legacyTripId,
     required this.title,
     this.subtitle = '',
     this.bannerImage = '',
@@ -210,6 +214,8 @@ class TripPackage {
 
   TripPackage copyWith({
     String? tripId,
+    int? revision,
+    String? legacyTripId,
     String? title,
     String? subtitle,
     String? bannerImage,
@@ -229,6 +235,8 @@ class TripPackage {
   }) {
     return TripPackage(
       tripId: tripId ?? this.tripId,
+      revision: revision ?? this.revision,
+      legacyTripId: legacyTripId ?? this.legacyTripId,
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
       bannerImage: bannerImage ?? this.bannerImage,
@@ -250,6 +258,8 @@ class TripPackage {
 
   Map<String, dynamic> toJson() => {
         'tripId': tripId,
+        if (revision != 0) 'revision': revision,
+        if (legacyTripId != null) 'legacyTripId': legacyTripId,
         'title': title,
         'subtitle': subtitle,
         'bannerImage': bannerImage,
@@ -270,6 +280,8 @@ class TripPackage {
 
   factory TripPackage.fromJson(Map<String, dynamic> json) => TripPackage(
         tripId: (json['tripId'] as String?) ?? '',
+        revision: (json['revision'] as int?) ?? 0,
+        legacyTripId: json['legacyTripId'] as String?,
         title: (json['title'] as String?) ?? '',
         subtitle: (json['subtitle'] as String?) ?? '',
         bannerImage: (json['bannerImage'] as String?) ?? '',

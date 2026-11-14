@@ -18,6 +18,94 @@ void main() {
     }
   });
 
+  const legacyKashmir = TripPackage(
+    tripId: '4',
+    title: 'Kashmir',
+    startDateIso8601: '2026-11-25',
+    endDateIso8601: '2026-11-29',
+    primaryTimezoneIana: 'Asia/Kolkata',
+    days: [
+      ItineraryDay(
+        dayNumber: 1,
+        dateIso8601: '2026-11-25',
+        title: 'Arrival',
+        primaryTimezoneIana: 'Asia/Kolkata',
+        events: [
+          ItineraryEvent(
+            eventId: 'evt_4_1793281756087',
+            title: 'Airport pickup',
+            eventType: EventType.transport,
+            startIso8601: '2026-11-25T09:00:00',
+            endIso8601: '2026-11-25T10:00:00',
+            timezoneIana: 'Asia/Kolkata',
+          ),
+        ],
+      ),
+    ],
+  );
+  const exportId = 'tt_44d3eba4601175df166784594a9fb318';
+
+  test('updated exports replace the matching trip and preserve local state',
+      () async {
+    final oldFile = await manager.exportTripUseCase.execute(trip: legacyKashmir);
+    await manager.importTripFromContainer(oldFile);
+    await manager.tripRepository.saveTrip(legacyKashmir.copyWith(isCompleted: true));
+    await manager.toggleChecklistItem('4', 'chk_passport', true);
+
+    final first = legacyKashmir.copyWith(
+      tripId: exportId,
+      legacyTripId: '4',
+      revision: 1,
+      title: 'Kashmir revised',
+    );
+    final revisionOne = await manager.exportTripUseCase.execute(trip: first);
+    await manager.importTripFromContainer(revisionOne);
+    expect(await manager.tripRepository.getTripById('4'), isNull);
+    expect((await manager.getChecklist(exportId)).completedCount, 1);
+
+    final revisionTwo = await manager.exportTripUseCase.execute(
+      trip: first.copyWith(revision: 2, title: 'Kashmir revised again'),
+    );
+    final restarted = MobileTripManagerService.fromDirectory(tempDir);
+    await Future.wait([
+      restarted.importTripFromContainer(revisionTwo),
+      restarted.importTripFromContainer(revisionOne),
+      restarted.importTripFromContainer(oldFile),
+    ]);
+
+    final saved = (await restarted.listAllTrips()).single;
+    expect(saved.tripId, exportId);
+    expect(saved.title, 'Kashmir revised again');
+    expect(saved.revision, 2);
+    expect(saved.isCompleted, isTrue);
+    expect((await restarted.getChecklist(exportId)).completedCount, 1);
+    expect((await restarted.getActiveTrip())?.tripId, exportId);
+  });
+
+  test('a different itinerary keeps its own entry despite a matching legacy ID',
+      () async {
+    await manager.tripRepository.saveTrip(legacyKashmir);
+    final unrelated = legacyKashmir.copyWith(
+      tripId: exportId,
+      legacyTripId: '4',
+      revision: 1,
+      days: [],
+    );
+    final bytes = await manager.exportTripUseCase.execute(trip: unrelated);
+    await manager.importTripFromContainer(bytes);
+    expect((await manager.listAllTrips()).map((trip) => trip.tripId),
+        unorderedEquals(['4', exportId]));
+  });
+
+  test('a revision with an invalid identity cannot replace a saved trip',
+      () async {
+    await manager.tripRepository.saveTrip(legacyKashmir);
+    final invalid = legacyKashmir.copyWith(revision: 1, title: 'Invalid revision');
+    final bytes = await manager.exportTripUseCase.execute(trip: invalid);
+    await expectLater(manager.importTripFromContainer(bytes), throwsFormatException);
+    expect((await manager.listAllTrips()).single.title, 'Kashmir');
+  });
+
   test('full offline trip container import, export, and checklist lifecycle',
       () async {
     // 1. Create a trip with an attached photo blob

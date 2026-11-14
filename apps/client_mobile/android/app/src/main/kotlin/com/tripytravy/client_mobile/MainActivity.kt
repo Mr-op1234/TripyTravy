@@ -81,7 +81,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        handleIntent(intent)
+        handleIntent(intent, initial = true)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -90,7 +90,7 @@ class MainActivity : FlutterActivity() {
         handleIntent(intent)
     }
 
-    private fun handleIntent(intent: Intent?) {
+    private fun handleIntent(intent: Intent?, initial: Boolean = false) {
         if (intent?.action == Intent.ACTION_VIEW) {
             val uri: Uri? = intent.data
             if (uri != null) {
@@ -98,10 +98,10 @@ class MainActivity : FlutterActivity() {
                     val inputStream = contentResolver.openInputStream(uri)
                     val bytes = inputStream?.use { it.readBytes() }
                     if (bytes != null && bytes.isNotEmpty()) {
-                        if (channel != null) {
-                            channel?.invokeMethod("onFileOpened", bytes)
-                        } else {
+                        if (initial) {
                             initialFileBytes = bytes
+                        } else {
+                            channel?.invokeMethod("onFileOpened", bytes)
                         }
                     }
                 } catch (e: Exception) {

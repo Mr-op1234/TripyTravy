@@ -156,16 +156,21 @@ class ImportTripContainerUseCase {
     final trip = mapper.fromWireBytes(unpacked.protobufBytes);
 
     for (final asset in trip.allAssets) {
-      if (asset.byteOffset + asset.byteSize <= unpacked.concatenatedAssets.length) {
-        final blob = unpacked.concatenatedAssets.sublist(
-          asset.byteOffset,
-          asset.byteOffset + asset.byteSize,
-        );
-        if ((asset.assetId.startsWith('document_') || asset.assetId.startsWith('photo_')) && sha256.convert(blob).toString() != asset.sha256Checksum) {
-          throw FormatException('Document checksum mismatch: ${asset.filename}');
-        }
-        await storage.putRawBlob(asset.sha256Checksum, blob);
+      final end = asset.byteOffset + asset.byteSize;
+      if (asset.byteOffset < 0 ||
+          asset.byteSize < 0 ||
+          end < asset.byteOffset ||
+          end > unpacked.concatenatedAssets.length) {
+        throw FormatException('Invalid attachment bounds: ${asset.filename}');
       }
+      final blob = unpacked.concatenatedAssets.sublist(asset.byteOffset, end);
+      final verifyChecksum = trip.revision > 0 ||
+          asset.assetId.startsWith('document_') ||
+          asset.assetId.startsWith('photo_');
+      if (verifyChecksum && sha256.convert(blob).toString() != asset.sha256Checksum) {
+        throw FormatException('Attachment checksum mismatch: ${asset.filename}');
+      }
+      await storage.putRawBlob(asset.sha256Checksum, blob);
     }
 
     return trip;
